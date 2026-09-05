@@ -1,0 +1,20 @@
+{
+  "format_version": "1.21.30",
+  "minecraft:item": {
+    "description": {
+      "identifier": "px:rocket",
+      "menu_category": {
+        "category": "items"
+      }
+    },
+    "components": {
+      "minecraft:icon": {
+        "texture": "px_rocket"
+      },
+      "minecraft:display_name": {
+        "value": "item.px:rocket.name"
+      },
+      "minecraft:max_stack_size": 16
+    }
+  }
+}

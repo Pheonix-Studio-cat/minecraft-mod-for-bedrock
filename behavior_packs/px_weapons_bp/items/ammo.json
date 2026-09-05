@@ -1,0 +1,20 @@
+{
+  "format_version": "1.21.30",
+  "minecraft:item": {
+    "description": {
+      "identifier": "px:ammo",
+      "menu_category": {
+        "category": "items"
+      }
+    },
+    "components": {
+      "minecraft:icon": {
+        "texture": "px_ammo"
+      },
+      "minecraft:display_name": {
+        "value": "item.px:ammo.name"
+      },
+      "minecraft:max_stack_size": 64
+    }
+  }
+}

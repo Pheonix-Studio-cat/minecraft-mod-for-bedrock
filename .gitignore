@@ -1,0 +1,22 @@
+# Build-Artefakte
+dist/
+
+# Fertige Pakete gehoeren nicht ins Repo (werden von tools/build.py erzeugt)
+*.mcaddon
+*.mcpack
+*.mcworld
+
+# Schutz vor versehentlich kopierten Vanilla-Assets
+vanilla_*/
+**/vanilla_behavior_pack/
+**/vanilla_resource_pack/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
+
+# Node (falls spaeter ein Build-Schritt dazukommt)
+node_modules/
