@@ -10,7 +10,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BP = os.path.join(ROOT, "behavior_packs", "px_weapons_bp")
 RP = os.path.join(ROOT, "resource_packs", "px_weapons_rp")
 
-ITEM_FORMAT = "1.21.30"
+ITEM_FORMAT = "1.21.60"
 RECIPE_FORMAT = "1.20.10"
 
 # name, kategorie, stapel, nahkampfschaden, haltbarkeit(0 = unzerstoerbar), verzauberbar
@@ -113,7 +113,9 @@ def build_items():
         ident = "px:" + name
         texture = "px_" + name
         components = {
-            "minecraft:icon": {"texture": texture},
+            # Kurzform statt {"texture": ...}: ab 1.20.60 die empfohlene und
+            # zuverlaessigere Schreibweise fuer den Atlas-Kurznamen.
+            "minecraft:icon": texture,
             "minecraft:display_name": {"value": "item.%s.name" % ident},
             "minecraft:max_stack_size": stack,
         }
@@ -152,6 +154,9 @@ def build_recipes():
             "minecraft:recipe_shaped": {
                 "description": {"identifier": ident},
                 "tags": ["crafting_table"],
+                # Seit 1.20.10 muessen Rezepte freigeschaltet werden,
+                # sonst sind sie im Spiel nicht herstellbar.
+                "unlock": [{"context": "AlwaysUnlocked"}],
                 "pattern": pattern,
                 "key": {k: {"item": v} for k, v in key.items()},
                 "result": {"item": ident, "count": count},
@@ -165,6 +170,7 @@ def build_recipes():
             "minecraft:recipe_shapeless": {
                 "description": {"identifier": ident},
                 "tags": ["crafting_table"],
+                "unlock": [{"context": "AlwaysUnlocked"}],
                 "ingredients": [{"item": i} for i in ingredients],
                 "result": {"item": ident, "count": count},
             },
@@ -260,12 +266,27 @@ def build_turret():
     })
 
 
+def build_textures_list():
+    """Listet alle Texturen des Resource-Packs in textures/textures_list.json."""
+    root = os.path.join(RP, "textures")
+    paths = []
+    for base, _, files in os.walk(root):
+        for name in sorted(files):
+            if name.endswith(".png"):
+                rel = os.path.relpath(os.path.join(base, name), RP)
+                paths.append(rel.replace(os.sep, "/")[: -len(".png")])
+    dump(os.path.join(root, "textures_list.json"), sorted(paths))
+    return len(paths)
+
+
 def main():
     build_items()
     build_recipes()
     build_lang()
     build_turret()
-    print("Items:", len(ITEMS), "| Rezepte:", len(SHAPED) + len(SHAPELESS))
+    count = build_textures_list()
+    print("Items:", len(ITEMS), "| Rezepte:", len(SHAPED) + len(SHAPELESS),
+          "| Texturen gelistet:", count)
 
 
 if __name__ == "__main__":

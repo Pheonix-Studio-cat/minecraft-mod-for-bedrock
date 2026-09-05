@@ -9,7 +9,7 @@
   "px_crosshair_image": {
     "type": "image",
     "texture": "textures/ui/px_crosshair",
-    "size": [ 21, 21 ],
+    "size": [ 11, 11 ],
     "layer": 40,
     "anchor_from": "center",
     "anchor_to": "center",

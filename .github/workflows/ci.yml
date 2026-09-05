@@ -22,6 +22,9 @@ jobs:
       - name: Skript-Syntax
         run: node --check behavior_packs/px_weapons_bp/scripts/main.js
 
+      - name: Mathematik testen
+        run: node tools/test_math.mjs
+
       - name: Add-Ons prüfen
         run: python3 tools/validate.py
 

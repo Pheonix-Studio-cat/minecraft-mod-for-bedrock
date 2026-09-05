@@ -1,0 +1,19 @@
+[
+  "textures/entity/px_turret",
+  "textures/items/px_ammo",
+  "textures/items/px_balisong",
+  "textures/items/px_bazooka",
+  "textures/items/px_grenade_frag",
+  "textures/items/px_grenade_molotov",
+  "textures/items/px_grenade_smoke",
+  "textures/items/px_karambit",
+  "textures/items/px_minigun",
+  "textures/items/px_pistol",
+  "textures/items/px_rifle",
+  "textures/items/px_rocket",
+  "textures/items/px_shotgun",
+  "textures/items/px_smg",
+  "textures/items/px_sniper",
+  "textures/items/px_turret",
+  "textures/ui/px_crosshair"
+]

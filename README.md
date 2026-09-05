@@ -28,17 +28,27 @@ kopieren.
 Beim Betreten der Welt erscheint im Chat:
 
 ```
-PX Weapons 1.1.0 geladen. /scriptevent px:recipes für Rezepte, /scriptevent px:diag für Diagnose.
+PX Weapons 1.2.0 geladen. /scriptevent px:recipes für Rezepte, /scriptevent px:diag für Diagnose.
 ```
 
-**Kommt diese Meldung nicht**, laufen die Skripte nicht — dann funktionieren alle
-Schusswaffen, Granaten und der Geschützturm nicht. Nur die Messer machen dann
-Schaden, weil die über eine Vanilla-Komponente laufen. Prüfe in dem Fall, ob das
+Diese Meldung ist der schnellste Test. Was sie ausschließt:
+
+| Beobachtung | Was daraus folgt |
+|---|---|
+| Startmeldung erscheint | Verhaltenspaket aktiv, Skripte laufen |
+| Fadenkreuz erscheint mit Waffe in der Hand | **Ressourcenpaket aktiv** — es kommt aus dem RP |
+| Schießen funktioniert | Skripte laufen |
+| Items heißen `item.px:pistol.name` | Ressourcenpaket **nicht** aktiv |
+
+**Kommt die Startmeldung nicht**, laufen die Skripte nicht — dann funktionieren
+Schusswaffen, Granaten und Geschützturm nicht. Nur die Messer machen weiter
+Schaden, weil deren Schaden über eine Vanilla-Komponente läuft. Prüfe, ob das
 Verhaltenspaket aktiv ist und ob unter *Experimente* die **Beta APIs** an sind.
 
-**Heißen die Items `item.px:pistol.name` statt „PX-7 Pistole"**, ist das
-**Ressourcenpaket** nicht aktiv. Dann fehlen auch alle Texturen und das
-Fadenkreuz. Beide Pakete müssen pro Welt einzeln aktiviert werden.
+Wichtig: Fadenkreuz **und** fehlende Item-Texturen gleichzeitig bedeuten *nicht*,
+dass das Ressourcenpaket fehlt — das Fadenkreuz kommt ja daraus. In dem Fall
+liegt es an der Auflösung der Item-Kurznamen über `textures/item_texture.json`
+und die `minecraft:icon`-Komponente.
 
 ### Befehle im Spiel
 
@@ -92,6 +102,10 @@ entspricht.
 | PX Geschützturm | zielt automatisch auf Monster im Radius 16, 40 LP |
 
 ## Crafting-Rezepte
+
+Alle Rezepte tragen `"unlock": [{"context": "AlwaysUnlocked"}]`. Ohne diesen
+Eintrag bleiben Rezepte seit Minecraft 1.20.10 gesperrt und lassen sich im Spiel
+nicht herstellen, auch wenn die Zutaten stimmen.
 
 Als bebilderte Raster: **[Rezeptseite](https://pheonix-studio-cat.github.io/minecraft-mod-for-bedrock/recipes/px_weapons.html)**
 · im Spiel: `/scriptevent px:recipes`
@@ -153,6 +167,7 @@ Streuung, Reichweite, Salvenlänge).
 | `python3 tools/build_site.py` | erzeugt die Website nach `site/` |
 | `python3 tools/check_site.py` | prüft die Website auf tote Links und Anker |
 | `node --check behavior_packs/px_weapons_bp/scripts/main.js` | Syntaxprüfung |
+| `node tools/test_math.mjs` | testet Vektor- und Streumathematik aus `main.js` |
 
 Wer Item- oder Rezeptwerte ändert, ändert sie in `tools/gen_content.py` und
 generiert neu — die JSON-Dateien sind erzeugte Artefakte. `dist/` und `site/`

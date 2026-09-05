@@ -15,7 +15,7 @@ import { world, system } from "@minecraft/server";
  * in dieser Liste und im Inhaltsprotokoll, abrufbar im Spiel mit          *
  *   /scriptevent px:diag                                                  *
  * ---------------------------------------------------------------------- */
-const VERSION = "1.1.0";
+const VERSION = "1.2.0";
 const problems = [];
 
 function problem(where, error) {
@@ -53,12 +53,12 @@ const ROCKET = "px:rocket";
  * burst    Schuesse pro Ausloesen, gap = Ticks dazwischen
  */
 const GUNS = {
-  "px:pistol":  { dmg: 5,  cd: 8,  pellets: 1, spread: 1.5, range: 40,  sound: "random.bow" },
-  "px:smg":     { dmg: 4,  cd: 12, pellets: 1, spread: 3.5, range: 32,  burst: 3,  gap: 2, sound: "random.bow" },
-  "px:rifle":   { dmg: 7,  cd: 14, pellets: 1, spread: 2.0, range: 56,  burst: 2,  gap: 3, sound: "random.bow" },
-  "px:shotgun": { dmg: 3,  cd: 20, pellets: 8, spread: 9.0, range: 16,  sound: "random.explode" },
+  "px:pistol":  { dmg: 5,  cd: 8,  pellets: 1, spread: 0.0, range: 40,  sound: "random.bow" },
+  "px:smg":     { dmg: 4,  cd: 12, pellets: 1, spread: 1.2, range: 32,  burst: 3,  gap: 2, sound: "random.bow" },
+  "px:rifle":   { dmg: 7,  cd: 14, pellets: 1, spread: 0.5, range: 56,  burst: 2,  gap: 3, sound: "random.bow" },
+  "px:shotgun": { dmg: 3,  cd: 20, pellets: 8, spread: 5.0, range: 16,  sound: "random.explode" },
   "px:sniper":  { dmg: 22, cd: 34, pellets: 1, spread: 0.0, range: 120, sound: "random.explode" },
-  "px:minigun": { dmg: 3,  cd: 45, pellets: 1, spread: 6.0, range: 40,  burst: 14, gap: 2, sound: "random.bow" },
+  "px:minigun": { dmg: 3,  cd: 45, pellets: 1, spread: 2.0, range: 40,  burst: 14, gap: 2, sound: "random.bow" },
 };
 
 const GRENADES = {
@@ -78,13 +78,40 @@ function normalize(v) {
   return { x: v.x / m, y: v.y / m, z: v.z / m };
 }
 
+function cross(a, b) {
+  return {
+    x: a.y * b.z - a.z * b.y,
+    y: a.z * b.x - a.x * b.z,
+    z: a.x * b.y - a.y * b.x,
+  };
+}
+
+/**
+ * Streut den Schuss in einem echten Kegel um die Blickrichtung.
+ *
+ * Vorher wurde auf jede Achse unabhaengig ein Zufallswert addiert, auch auf
+ * die Blickachse selbst. Dadurch lag der Treffer systematisch neben dem Ziel.
+ * Jetzt wird senkrecht zur Blickrichtung ausgelenkt, gleichmaessig ueber die
+ * Kreisflaeche, und bei 0 Grad trifft der Schuss exakt das Fadenkreuz.
+ */
 function applySpread(dir, degrees) {
-  if (!degrees) return dir;
-  const r = (degrees * Math.PI) / 180;
+  const forward = normalize(dir);
+  if (!degrees) return forward;
+
+  const helper = Math.abs(forward.y) > 0.999 ? { x: 1, y: 0, z: 0 } : { x: 0, y: 1, z: 0 };
+  const right = normalize(cross(forward, helper));
+  const up = cross(right, forward);
+
+  const maxRadius = Math.tan((degrees * Math.PI) / 180);
+  const radius = Math.sqrt(Math.random()) * maxRadius;
+  const angle = Math.random() * Math.PI * 2;
+  const dx = Math.cos(angle) * radius;
+  const dy = Math.sin(angle) * radius;
+
   return normalize({
-    x: dir.x + (Math.random() * 2 - 1) * r,
-    y: dir.y + (Math.random() * 2 - 1) * r,
-    z: dir.z + (Math.random() * 2 - 1) * r,
+    x: forward.x + right.x * dx + up.x * dy,
+    y: forward.y + right.y * dx + up.y * dy,
+    z: forward.z + right.z * dx + up.z * dy,
   });
 }
 

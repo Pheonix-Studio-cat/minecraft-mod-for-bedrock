@@ -349,20 +349,17 @@ ART["px_rocket"] = """
 
 
 
-def crosshair(size=21):
-    """Fadenkreuz: vier Striche und ein Punkt, weiss mit dunkler Kontur.
-
-    Die Kontur sorgt dafuer, dass es auf hellem wie dunklem Hintergrund
-    sichtbar bleibt.
+def crosshair(size=11):
+    """Ein durchgehendes Kreuz: waagerechter und senkrechter Strich, die sich
+    in der Mitte treffen. Weiss mit dunkler Kontur, damit es auf jedem
+    Hintergrund lesbar bleibt.
     """
     mid = size // 2
+    arm = mid - 1          # Laenge je Arm ab Mitte
     white = set()
-    for offset in range(2, 7):
-        white.add((mid, mid - offset))
-        white.add((mid, mid + offset))
-        white.add((mid - offset, mid))
-        white.add((mid + offset, mid))
-    white.add((mid, mid))
+    for offset in range(-arm, arm + 1):
+        white.add((mid + offset, mid))   # waagerecht
+        white.add((mid, mid + offset))   # senkrecht
 
     outline = set()
     for x, y in white:
@@ -373,8 +370,8 @@ def crosshair(size=21):
                     outline.add(spot)
 
     clear = (0, 0, 0, 0)
-    bright = (255, 255, 255, 235)
-    dark = (0, 0, 0, 170)
+    bright = (255, 255, 255, 240)
+    dark = (0, 0, 0, 165)
     rows = []
     for y in range(size):
         row = []
