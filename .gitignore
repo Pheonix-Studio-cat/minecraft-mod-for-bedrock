@@ -1,5 +1,6 @@
 # Build-Artefakte
 dist/
+site/
 
 # Fertige Pakete gehoeren nicht ins Repo (werden von tools/build.py erzeugt)
 *.mcaddon

@@ -1,27 +1,37 @@
 #!/usr/bin/env python3
-"""Packt Behavior- und Resource-Pack zu dist/PX_Weapons.mcaddon.
+"""Packt jedes in addons.json eingetragene Add-On zu einer .mcaddon-Datei.
 
 Ausfuehren mit:  python3 tools/build.py
-Die entstandene Datei laesst sich auf Windows/Android/iOS direkt oeffnen und
-importiert beide Packs in Minecraft Bedrock.
+Ergebnis liegt in dist/ und laesst sich auf Windows/Android/iOS direkt oeffnen.
 """
+import json
 import os
 import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DIST = os.path.join(ROOT, "dist")
-PACKS = ["behavior_packs/px_weapons_bp", "resource_packs/px_weapons_rp"]
+MANIFEST = os.path.join(ROOT, "addons.json")
 SKIP = {".DS_Store", "Thumbs.db"}
 
 
-def main():
-    os.makedirs(DIST, exist_ok=True)
-    target = os.path.join(DIST, "PX_Weapons.mcaddon")
+def load_manifest():
+    with open(MANIFEST) as fh:
+        return json.load(fh)
+
+
+def filename(addon):
+    return "%s-%s.mcaddon" % (addon["id"], addon["version"])
+
+
+def build(addon):
+    target = os.path.join(DIST, filename(addon))
     count = 0
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
-        for pack in PACKS:
+        for pack in addon["packs"]:
             root = os.path.join(ROOT, pack)
-            top = os.path.basename(pack)
+            if not os.path.isdir(root):
+                raise SystemExit("Pack-Ordner fehlt: %s" % pack)
+            top = os.path.basename(pack.rstrip("/"))
             for base, _, files in os.walk(root):
                 for name in sorted(files):
                     if name in SKIP:
@@ -30,8 +40,17 @@ def main():
                     rel = os.path.relpath(full, root)
                     archive.write(full, os.path.join(top, rel))
                     count += 1
-    size = os.path.getsize(target)
-    print("%s (%d Dateien, %.1f KB)" % (os.path.relpath(target, ROOT), count, size / 1024))
+    return target, count, os.path.getsize(target)
+
+
+def main():
+    os.makedirs(DIST, exist_ok=True)
+    manifest = load_manifest()
+    for addon in manifest["addons"]:
+        target, count, size = build(addon)
+        print("%-34s %3d Dateien  %7.1f KB"
+              % (os.path.relpath(target, ROOT), count, size / 1024))
+    print("%d Add-On(s) gebaut." % len(manifest["addons"]))
 
 
 if __name__ == "__main__":

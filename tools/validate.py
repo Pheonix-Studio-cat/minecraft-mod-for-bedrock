@@ -169,9 +169,75 @@ for pack in (BP, RP):
 
 print("%d JSON-Dateien geprueft, %d Items, %d Rezepte"
       % (checked, len(items), len(recipe_results)))
+# ---------------------------------------------------------------------------
+# 9) addons.json - die Datenquelle fuer Downloads und Website
+# ---------------------------------------------------------------------------
+manifest_path = os.path.join(ROOT, "addons.json")
+if not os.path.exists(manifest_path):
+    errors.append("addons.json fehlt")
+else:
+    library = load(manifest_path)
+    if not isinstance(library, dict):
+        errors.append("addons.json ist kein Objekt")
+        library = {"addons": []}
+
+    for key in ("studio", "title", "tagline", "intro", "repository", "addons"):
+        if key not in library:
+            errors.append("addons.json: Feld '%s' fehlt" % key)
+
+    seen_ids = set()
+    for addon in library.get("addons", []):
+        name = addon.get("id", "<ohne id>")
+        for key in ("id", "name", "tagline", "description", "version",
+                    "minEngineVersion", "accent", "packs"):
+            if key not in addon:
+                errors.append("addons.json/%s: Feld '%s' fehlt" % (name, key))
+
+        if addon.get("id") in seen_ids:
+            errors.append("addons.json: doppelte id '%s'" % name)
+        seen_ids.add(addon.get("id"))
+
+        accent = addon.get("accent", "")
+        if not (isinstance(accent, str) and accent.startswith("#")
+                and len(accent) in (4, 7)):
+            errors.append("addons.json/%s: 'accent' ist keine Hex-Farbe (%r)"
+                          % (name, accent))
+
+        version = addon.get("version", "")
+        if len(str(version).split(".")) != 3:
+            errors.append("addons.json/%s: 'version' erwartet x.y.z (%r)"
+                          % (name, version))
+
+        for pack in addon.get("packs", []):
+            full = os.path.join(ROOT, pack)
+            if not os.path.isdir(full):
+                errors.append("addons.json/%s: Pack-Ordner fehlt -> %s" % (name, pack))
+            elif not os.path.exists(os.path.join(full, "manifest.json")):
+                errors.append("addons.json/%s: %s hat keine manifest.json" % (name, pack))
+
+        preview = addon.get("preview", {})
+        pack = preview.get("pack")
+        if preview and not pack:
+            errors.append("addons.json/%s: preview ohne 'pack'" % name)
+        if pack and pack not in addon.get("packs", []):
+            errors.append("addons.json/%s: preview.pack '%s' steht nicht in 'packs'"
+                          % (name, pack))
+        for texture in preview.get("textures", []):
+            png = os.path.join(ROOT, pack or "", "textures", "items", texture + ".png")
+            if not os.path.exists(png):
+                errors.append("addons.json/%s: Vorschaubild fehlt -> %s"
+                              % (name, os.path.relpath(png, ROOT)))
+
+        docs = addon.get("docs")
+        if docs and not os.path.exists(os.path.join(ROOT, docs)):
+            errors.append("addons.json/%s: 'docs' zeigt auf %s - nicht vorhanden"
+                          % (name, docs))
+
+    print("addons.json: %d Add-On(s) im Katalog" % len(library.get("addons", [])))
+
 if errors:
     print("\nFEHLER (%d):" % len(errors))
     for e in errors:
         print("  -", e)
     sys.exit(1)
-print("Alles konsistent.")
+print("Katalog konsistent.")

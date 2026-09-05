@@ -1,0 +1,47 @@
+name: Prüfung
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Skript-Syntax
+        run: node --check behavior_packs/px_weapons_bp/scripts/main.js
+
+      - name: Add-Ons prüfen
+        run: python3 tools/validate.py
+
+      - name: Erzeugte Dateien sind aktuell
+        run: |
+          python3 tools/gen_textures.py
+          python3 tools/gen_content.py
+          # Nur die von den Generatoren erzeugten Pfade vergleichen.
+          # PNGs ausgenommen: zlib komprimiert je nach Version minimal anders.
+          if ! git diff --quiet -- behavior_packs resource_packs ':!*.png'; then
+            echo "::error::Erzeugte Dateien weichen von den Generatoren ab."
+            echo "Bitte 'python3 tools/gen_textures.py && python3 tools/gen_content.py' ausführen und committen."
+            git --no-pager diff --stat -- behavior_packs resource_packs ':!*.png'
+            exit 1
+          fi
+
+      - name: Add-Ons packen
+        run: python3 tools/build.py
+
+      - name: Website erzeugen und prüfen
+        run: |
+          python3 tools/build_site.py
+          python3 tools/check_site.py
