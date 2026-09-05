@@ -7,6 +7,8 @@ Ein Bedrock-Add-On von PHÖNIX STUDIO mit Nahkampfwaffen, Schusswaffen, Granaten
 und einem Geschützturm. Alle Waffen sind **frei erfunden** — keine realen
 Markennamen, keine Designs aus anderen Spielen, alle Grafiken selbst erzeugt.
 
+**Download-Seite:** https://pheonix-studio-cat.github.io/minecraft-mod-for-bedrock/
+
 ## Installation
 
 1. `python3 tools/build.py` ausführen → erzeugt `dist/PX_Weapons.mcaddon`
@@ -108,12 +110,65 @@ Streuung, Reichweite, Salvenlänge).
 |---|---|
 | `python3 tools/gen_textures.py` | erzeugt alle PNGs neu aus ASCII-Pixelart |
 | `python3 tools/gen_content.py` | erzeugt Items, Rezepte, Sprachdateien, Entity |
-| `python3 tools/validate.py` | prüft JSON, Texturverweise, Rezepte, Sprachschlüssel |
-| `python3 tools/build.py` | packt `dist/PX_Weapons.mcaddon` |
+| `python3 tools/validate.py` | prüft JSON, Texturverweise, Rezepte, Sprachschlüssel, `addons.json` |
+| `python3 tools/build.py` | packt jedes Add-On aus `addons.json` nach `dist/` |
+| `python3 tools/build_site.py` | erzeugt die Website nach `site/` |
+| `python3 tools/check_site.py` | prüft die Website auf tote Links und Anker |
 | `node --check behavior_packs/px_weapons_bp/scripts/main.js` | Syntaxprüfung |
 
 Wer Item- oder Rezeptwerte ändert, ändert sie in `tools/gen_content.py` und
-generiert neu — die JSON-Dateien sind erzeugte Artefakte.
+generiert neu — die JSON-Dateien sind erzeugte Artefakte. `dist/` und `site/`
+sind ebenfalls Artefakte und stehen in `.gitignore`.
+
+## Website: die Add-On-Bibliothek
+
+Die Downloadseite wird aus `addons.json` erzeugt und per GitHub Actions nach
+GitHub Pages veröffentlicht. `addons.json` ist die einzige Stelle, an der ein
+Add-On eingetragen wird — Website, Downloads und Vorschaubilder folgen daraus.
+
+### Ein neues Add-On aufnehmen
+
+1. Behavior- und Resource-Pack unter `behavior_packs/` bzw. `resource_packs/` anlegen
+2. Eintrag in `addons.json` ergänzen:
+
+```json
+{
+  "id": "px_beispiel",
+  "name": "PX Beispiel",
+  "tagline": "Kurzbeschreibung für die Karte",
+  "description": "Längerer Text für die Detailseite.",
+  "version": "1.0.0",
+  "minEngineVersion": "1.21.80",
+  "requiresBetaApi": true,
+  "accent": "#3fb8c8",
+  "tags": ["Kategorie"],
+  "packs": ["behavior_packs/px_beispiel_bp", "resource_packs/px_beispiel_rp"],
+  "preview": {
+    "pack": "resource_packs/px_beispiel_rp",
+    "textures": ["px_item_a", "px_item_b"]
+  },
+  "features": ["Stichpunkt für die Detailseite"]
+}
+```
+
+3. `python3 tools/validate.py` — prüft, dass Ordner, Vorschaubilder und Felder stimmen
+4. Auf `main` pushen — der Workflow baut und veröffentlicht automatisch
+
+Die Vorschaubilder auf der Karte sind echte Item-Texturen aus dem Resource-Pack,
+referenziert über ihren Dateinamen ohne `.png`.
+
+### Einmalige Einrichtung von GitHub Pages
+
+Unter **Settings → Pages → Build and deployment → Source** den Eintrag
+**GitHub Actions** wählen. Danach veröffentlicht jeder Push auf `main` die Seite
+neu. Ohne diese einmalige Umstellung läuft der Workflow, findet aber kein Ziel.
+
+### Automatisierung
+
+| Workflow | Auslöser | Zweck |
+|---|---|---|
+| `.github/workflows/ci.yml` | Pull Request und Push auf `main` | Syntax, Validierung, prüft ob erzeugte Dateien aktuell sind, baut Website testweise |
+| `.github/workflows/pages.yml` | Push auf `main` | baut Add-Ons und Website und veröffentlicht auf GitHub Pages |
 
 ## Rechtliches
 
@@ -133,5 +188,9 @@ generiert neu — die JSON-Dateien sind erzeugte Artefakte.
   Schusswaffen sind dort nicht zulässig. Auch auf kommerziell betriebenen
   Servern gelten Mojangs Commercial Usage Guidelines; vor einer Monetarisierung
   bitte selbst prüfen.
+- **Website.** Die Downloadseite bindet keine Schriften, Skripte oder Bilder
+  von Dritten ein, setzt keine Cookies und sammelt keine Daten. Sie trägt den
+  Disclaimer in der Fußzeile und verwendet weder Minecraft-Branding noch
+  Mojang-Logos.
 - **Lizenz.** MIT (siehe `LICENSE`) — gilt für den Code und die hier erzeugten
   Assets, nicht für Minecraft selbst.

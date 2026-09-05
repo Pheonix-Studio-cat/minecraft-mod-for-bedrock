@@ -1,0 +1,43 @@
+{
+  "studio": "PHÖNIX STUDIO",
+  "title": "Add-On Bibliothek",
+  "tagline": "Kostenlose Add-Ons für Minecraft Bedrock",
+  "intro": "Alle Add-Ons von PHÖNIX STUDIO an einem Ort. Herunterladen, doppelklicken, in den Welteinstellungen aktivieren. Kein Konto, keine Werbung, keine Datensammlung.",
+  "repository": "https://github.com/Pheonix-Studio-cat/minecraft-mod-for-bedrock",
+  "addons": [
+    {
+      "id": "px_weapons",
+      "name": "PX Weapons",
+      "tagline": "Schusswaffen, Messer, Granaten und ein Geschützturm",
+      "description": "Sieben frei erfundene Schusswaffen von der Pistole bis zur Minigun, zwei Nahkampfmesser mit eigenen Rechtsklick-Aktionen, drei Granatentypen und ein Geschützturm, der Monster automatisch erfasst. Alle Rezepte sind bewusst günstig gehalten: nur Eisen, Stöcke, Redstone, Schießpulver, Kohle, Glas und Faden.",
+      "version": "1.0.0",
+      "minEngineVersion": "1.21.80",
+      "requiresBetaApi": true,
+      "accent": "#e08a2e",
+      "tags": ["Waffen", "Kampf", "Skript-API"],
+      "packs": [
+        "behavior_packs/px_weapons_bp",
+        "resource_packs/px_weapons_rp"
+      ],
+      "preview": {
+        "pack": "resource_packs/px_weapons_rp",
+        "textures": [
+          "px_rifle",
+          "px_karambit",
+          "px_grenade_frag",
+          "px_turret",
+          "px_bazooka",
+          "px_balisong"
+        ]
+      },
+      "features": [
+        "7 Schusswaffen mit Streuung, Salven und Munitionsverbrauch",
+        "Balisong mit Flip-Animation, Karambit mit Ausfallschritt",
+        "Splitter-, Rauch- und Brandgranaten",
+        "Geschützturm mit automatischer Zielerfassung im Radius 16",
+        "Griefing per Konfiguration komplett abschaltbar"
+      ],
+      "docs": "README.md"
+    }
+  ]
+}
