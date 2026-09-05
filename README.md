@@ -21,8 +21,32 @@ Alternativ: die beiden Ordner direkt nach
 `com.mojang/development_behavior_packs/` bzw. `development_resource_packs/`
 kopieren.
 
-**Voraussetzung:** Minecraft Bedrock **1.21.80 oder neuer** (das Add-On nutzt
-`@minecraft/server` 2.0.0).
+**Voraussetzung:** Minecraft Bedrock **1.21.30 oder neuer**.
+
+## Läuft es? Erst das prüfen
+
+Beim Betreten der Welt erscheint im Chat:
+
+```
+PX Weapons 1.1.0 geladen. /scriptevent px:recipes für Rezepte, /scriptevent px:diag für Diagnose.
+```
+
+**Kommt diese Meldung nicht**, laufen die Skripte nicht — dann funktionieren alle
+Schusswaffen, Granaten und der Geschützturm nicht. Nur die Messer machen dann
+Schaden, weil die über eine Vanilla-Komponente laufen. Prüfe in dem Fall, ob das
+Verhaltenspaket aktiv ist und ob unter *Experimente* die **Beta APIs** an sind.
+
+**Heißen die Items `item.px:pistol.name` statt „PX-7 Pistole"**, ist das
+**Ressourcenpaket** nicht aktiv. Dann fehlen auch alle Texturen und das
+Fadenkreuz. Beide Pakete müssen pro Welt einzeln aktiviert werden.
+
+### Befehle im Spiel
+
+| Befehl | Wirkung |
+|---|---|
+| `/scriptevent px:recipes` | listet alle Rezepte im Chat |
+| `/scriptevent px:diag` | Version, Munition, aktive Projektile, aufgezeichnete Fehler |
+| `/scriptevent px:help` | Kurzhilfe |
 
 ## Inhalt
 
@@ -47,6 +71,17 @@ Rechtsklick / langes Tippen = schießen. Verbrauchen **Munition** aus dem Invent
 | PX Balisong | 6 | Flip-Animation (kosmetisch) |
 | PX Karambit | 7 | Ausfallschritt — 5 Extraschaden auf 3 Blöcke |
 
+### Fadenkreuz
+
+Sobald eine Schusswaffe in der Hand ist, erscheint ein Fadenkreuz in der
+Bildschirmmitte. Es verschwindet, sobald du etwas anderes hältst.
+
+Technisch geht das nur über einen Umweg: Bedrock lässt Skripte nichts direkt ins
+HUD zeichnen. Das Skript setzt deshalb den Titeltext auf ein einzelnes
+Leerzeichen (unsichtbar), und `resource_packs/px_weapons_rp/ui/hud_screen.json`
+blendet das Fadenkreuz genau dann ein, wenn der Titeltext diesem Signal
+entspricht.
+
 ### Granaten & Gerät
 
 | Gegenstand | Wirkung |
@@ -57,6 +92,9 @@ Rechtsklick / langes Tippen = schießen. Verbrauchen **Munition** aus dem Invent
 | PX Geschützturm | zielt automatisch auf Monster im Radius 16, 40 LP |
 
 ## Crafting-Rezepte
+
+Als bebilderte Raster: **[Rezeptseite](https://pheonix-studio-cat.github.io/minecraft-mod-for-bedrock/recipes/px_weapons.html)**
+· im Spiel: `/scriptevent px:recipes`
 
 Bewusst günstig gehalten — alles aus Eisen, Stöcken, Redstone und Schießpulver.
 `I` Eisenbarren · `S` Stock · `R` Redstone · `G` Glas · `P` Schießpulver ·

@@ -228,16 +228,125 @@ else:
                 errors.append("addons.json/%s: Vorschaubild fehlt -> %s"
                               % (name, os.path.relpath(png, ROOT)))
 
-        docs = addon.get("docs")
-        if docs and not os.path.exists(os.path.join(ROOT, docs)):
+        doc_path = addon.get("docs")
+        if doc_path and not os.path.exists(os.path.join(ROOT, doc_path)):
             errors.append("addons.json/%s: 'docs' zeigt auf %s - nicht vorhanden"
-                          % (name, docs))
+                          % (name, doc_path))
 
     print("addons.json: %d Add-On(s) im Katalog" % len(library.get("addons", [])))
+
+# ---------------------------------------------------------------------------
+# 10) Rezept-Hilfe im Skript gegen die echten Rezepte abgleichen
+# ---------------------------------------------------------------------------
+SCRIPT = os.path.join(BP, "scripts", "main.js")
+LETTER = {
+    "minecraft:iron_ingot": "I",
+    "minecraft:stick": "S",
+    "minecraft:redstone": "R",
+    "minecraft:glass": "G",
+    "minecraft:gunpowder": "P",
+    "minecraft:string": "T",
+    "minecraft:coal": "C",
+    "minecraft:glass_bottle": "F",
+}
+
+if not os.path.exists(SCRIPT):
+    errors.append("Skript fehlt: %s" % SCRIPT)
+else:
+    with open(SCRIPT, encoding="utf-8") as fh:
+        script = fh.read()
+
+    unknown = set()
+    for path, doc in docs.items():
+        if not isinstance(doc, dict):
+            continue
+
+        shaped = doc.get("minecraft:recipe_shaped")
+        if shaped:
+            key = {k: v["item"] for k, v in shaped["key"].items()}
+            rows = []
+            for row in shaped["pattern"]:
+                out = ""
+                for ch in row:
+                    if ch == " ":
+                        out += "_"
+                    else:
+                        item = key[ch]
+                        if item not in LETTER:
+                            unknown.add(item)
+                        out += LETTER.get(item, "?")
+                rows.append(out)
+            wanted = " / ".join(rows)
+            if wanted not in script:
+                errors.append("Rezept-Hilfe im Skript fehlt oder weicht ab: "
+                              "%s erwartet '%s'"
+                              % (os.path.basename(path), wanted))
+
+        shapeless = doc.get("minecraft:recipe_shapeless")
+        if shapeless:
+            letters = []
+            for ingredient in shapeless["ingredients"]:
+                item = ingredient["item"]
+                if item not in LETTER:
+                    unknown.add(item)
+                letters.append(LETTER.get(item, "?"))
+            wanted = " + ".join(letters)
+            if wanted not in script:
+                errors.append("Rezept-Hilfe im Skript fehlt oder weicht ab: "
+                              "%s erwartet '%s'"
+                              % (os.path.basename(path), wanted))
+
+    for item in sorted(unknown):
+        errors.append("Kein Kuerzel fuer '%s' in tools/validate.py hinterlegt" % item)
+
+    # Ohne Startmeldung laesst sich im Spiel nicht erkennen, ob Skripte laufen.
+    if "world.sendMessage" not in script:
+        errors.append("Skript hat keine Startmeldung - Diagnose im Spiel unmoeglich")
+
+# ---------------------------------------------------------------------------
+# 11) HUD-Ueberlagerung
+# ---------------------------------------------------------------------------
+hud = os.path.join(RP, "ui", "hud_screen.json")
+if not os.path.exists(hud):
+    errors.append("ui/hud_screen.json fehlt - kein Fadenkreuz")
+else:
+    doc = docs.get(hud) or load(hud)
+    texture = None
+    for name, node in (doc or {}).items():
+        if isinstance(node, dict) and node.get("type") == "image":
+            texture = node.get("texture")
+    if not texture:
+        errors.append("hud_screen.json enthaelt kein Bild-Element")
+    else:
+        png = os.path.join(RP, texture + ".png")
+        if not os.path.exists(png):
+            errors.append("Fadenkreuz-Textur fehlt: %s" % os.path.relpath(png, ROOT))
+
+print("Rezept-Hilfe und HUD geprueft")
+
+# ---------------------------------------------------------------------------
+# 12) Katalogversion und Pack-Manifeste muessen uebereinstimmen
+# ---------------------------------------------------------------------------
+if os.path.exists(manifest_path) and isinstance(library, dict):
+    for addon in library.get("addons", []):
+        wanted = [int(x) for x in str(addon.get("version", "0.0.0")).split(".")]
+        for pack in addon.get("packs", []):
+            mf = os.path.join(ROOT, pack, "manifest.json")
+            if not os.path.exists(mf):
+                continue
+            data = load(mf)
+            if not isinstance(data, dict):
+                continue
+            have = data.get("header", {}).get("version")
+            if have != wanted:
+                errors.append("%s: Manifest-Version %s passt nicht zu "
+                              "addons.json (%s)" % (pack, have, wanted))
+
+print("Versionen abgeglichen")
 
 if errors:
     print("\nFEHLER (%d):" % len(errors))
     for e in errors:
         print("  -", e)
     sys.exit(1)
-print("Katalog konsistent.")
+print("Alles konsistent.")

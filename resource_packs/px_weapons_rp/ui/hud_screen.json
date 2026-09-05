@@ -1,0 +1,49 @@
+{
+  "namespace": "hud",
+
+  "//": "Fadenkreuz-Ueberlagerung. Sichtbar nur, wenn das Skript den Titeltext",
+  "// ": "auf ein einzelnes Leerzeichen setzt - das passiert genau dann, wenn",
+  "//  ": "der Spieler eine Schusswaffe in der Hand haelt. Ein Leerzeichen wird",
+  "//   ": "als Titel nicht sichtbar gerendert und dient nur als Signal.",
+
+  "px_crosshair_image": {
+    "type": "image",
+    "texture": "textures/ui/px_crosshair",
+    "size": [ 21, 21 ],
+    "layer": 40,
+    "anchor_from": "center",
+    "anchor_to": "center",
+    "bindings": [
+      {
+        "binding_name": "#hud_title_text_string",
+        "binding_name_override": "#px_marker",
+        "binding_type": "global"
+      },
+      {
+        "binding_type": "view",
+        "source_property_name": "(#px_marker = ' ')",
+        "target_property_name": "#visible"
+      }
+    ]
+  },
+
+  "px_hud_layer": {
+    "type": "panel",
+    "size": [ "100%", "100%" ],
+    "controls": [
+      { "px_crosshair_image@hud.px_crosshair_image": {} }
+    ]
+  },
+
+  "root_panel": {
+    "modifications": [
+      {
+        "array_name": "controls",
+        "operation": "insert_front",
+        "value": {
+          "px_hud_layer@hud.px_hud_layer": {}
+        }
+      }
+    ]
+  }
+}
