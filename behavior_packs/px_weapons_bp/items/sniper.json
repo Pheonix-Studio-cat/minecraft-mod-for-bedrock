@@ -1,5 +1,5 @@
 {
-  "format_version": "1.21.30",
+  "format_version": "1.21.60",
   "minecraft:item": {
     "description": {
       "identifier": "px:sniper",
@@ -8,9 +8,7 @@
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "px_sniper"
-      },
+      "minecraft:icon": "px_sniper",
       "minecraft:display_name": {
         "value": "item.px:sniper.name"
       },

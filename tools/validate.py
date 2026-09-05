@@ -51,7 +51,8 @@ if not items:
 atlas = docs.get(os.path.join(RP, "textures", "item_texture.json")) or {}
 atlas_data = atlas.get("texture_data", {})
 for ident, (path, components) in items.items():
-    icon = components.get("minecraft:icon", {}).get("texture")
+    raw_icon = components.get("minecraft:icon")
+    icon = raw_icon if isinstance(raw_icon, str) else (raw_icon or {}).get("texture")
     if not icon:
         errors.append("%s hat kein minecraft:icon" % ident)
         continue
@@ -86,10 +87,14 @@ for path, doc in docs.items():
             errors.append("%s: Zeichen ohne Key: %s" % (path, sorted(used - defined)))
         if defined - used:
             errors.append("%s: Key ohne Verwendung: %s" % (path, sorted(defined - used)))
+        if not shaped.get("unlock"):
+            errors.append("%s: 'unlock' fehlt - Rezept bleibt im Spiel gesperrt" % path)
         recipe_results.append((path, shaped["result"]["item"]))
     if shapeless:
         if not shapeless["ingredients"]:
             errors.append("%s: Rezept ohne Zutaten" % path)
+        if not shapeless.get("unlock"):
+            errors.append("%s: 'unlock' fehlt - Rezept bleibt im Spiel gesperrt" % path)
         recipe_results.append((path, shapeless["result"]["item"]))
 
 for path, result in recipe_results:
@@ -341,6 +346,44 @@ if os.path.exists(manifest_path) and isinstance(library, dict):
             if have != wanted:
                 errors.append("%s: Manifest-Version %s passt nicht zu "
                               "addons.json (%s)" % (pack, have, wanted))
+
+# ---------------------------------------------------------------------------
+# 13) textures_list.json muss zu den vorhandenen PNGs passen
+# ---------------------------------------------------------------------------
+listing = os.path.join(RP, "textures", "textures_list.json")
+if not os.path.exists(listing):
+    errors.append("textures/textures_list.json fehlt")
+else:
+    listed = set(load(listing) or [])
+    actual = set()
+    for base, _, files in os.walk(os.path.join(RP, "textures")):
+        for name in files:
+            if name.endswith(".png"):
+                rel = os.path.relpath(os.path.join(base, name), RP)
+                actual.add(rel.replace(os.sep, "/")[:-4])
+    for missing in sorted(actual - listed):
+        errors.append("textures_list.json fuehrt '%s' nicht auf" % missing)
+    for extra_entry in sorted(listed - actual):
+        errors.append("textures_list.json nennt '%s', die Datei fehlt" % extra_entry)
+
+# Die Fadenkreuz-Groesse in der UI muss zur Textur passen.
+if os.path.exists(hud):
+    hud_doc = load(hud) or {}
+    for node in hud_doc.values():
+        if isinstance(node, dict) and node.get("type") == "image":
+            declared = node.get("size")
+            png = os.path.join(RP, node.get("texture", "") + ".png")
+            if declared and os.path.exists(png):
+                with open(png, "rb") as fh:
+                    head = fh.read(24)
+                width = int.from_bytes(head[16:20], "big")
+                height = int.from_bytes(head[20:24], "big")
+                if declared != [width, height]:
+                    errors.append("hud_screen.json gibt %s an, die Textur ist %dx%d"
+                                  % (declared, width, height))
+
+print("Texturliste und HUD-Groesse geprueft")
+
 
 print("Versionen abgeglichen")
 

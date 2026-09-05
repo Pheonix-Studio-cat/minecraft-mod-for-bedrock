@@ -1,5 +1,5 @@
 {
-  "format_version": "1.21.30",
+  "format_version": "1.21.60",
   "minecraft:item": {
     "description": {
       "identifier": "px:grenade_frag",
@@ -8,9 +8,7 @@
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "px_grenade_frag"
-      },
+      "minecraft:icon": "px_grenade_frag",
       "minecraft:display_name": {
         "value": "item.px:grenade_frag.name"
       },

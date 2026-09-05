@@ -1,5 +1,5 @@
 {
-  "format_version": "1.21.30",
+  "format_version": "1.21.60",
   "minecraft:item": {
     "description": {
       "identifier": "px:grenade_smoke",
@@ -8,9 +8,7 @@
       }
     },
     "components": {
-      "minecraft:icon": {
-        "texture": "px_grenade_smoke"
-      },
+      "minecraft:icon": "px_grenade_smoke",
       "minecraft:display_name": {
         "value": "item.px:grenade_smoke.name"
       },
