@@ -1,0 +1,20 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "px:turret",
+      "materials": {
+        "default": "entity_alphatest"
+      },
+      "textures": {
+        "default": "textures/entity/px_turret"
+      },
+      "geometry": {
+        "default": "geometry.px_turret"
+      },
+      "render_controllers": [
+        "controller.render.default"
+      ]
+    }
+  }
+}

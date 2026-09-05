@@ -1,0 +1,27 @@
+{
+  "format_version": "1.20.10",
+  "minecraft:recipe_shaped": {
+    "description": {
+      "identifier": "px:balisong"
+    },
+    "tags": [
+      "crafting_table"
+    ],
+    "pattern": [
+      "I ",
+      "IS"
+    ],
+    "key": {
+      "I": {
+        "item": "minecraft:iron_ingot"
+      },
+      "S": {
+        "item": "minecraft:stick"
+      }
+    },
+    "result": {
+      "item": "px:balisong",
+      "count": 1
+    }
+  }
+}

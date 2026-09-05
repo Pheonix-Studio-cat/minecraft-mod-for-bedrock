@@ -1,0 +1,51 @@
+{
+  "resource_pack_name": "px_weapons",
+  "texture_name": "atlas.items",
+  "texture_data": {
+    "px_pistol": {
+      "textures": "textures/items/px_pistol"
+    },
+    "px_smg": {
+      "textures": "textures/items/px_smg"
+    },
+    "px_rifle": {
+      "textures": "textures/items/px_rifle"
+    },
+    "px_shotgun": {
+      "textures": "textures/items/px_shotgun"
+    },
+    "px_sniper": {
+      "textures": "textures/items/px_sniper"
+    },
+    "px_minigun": {
+      "textures": "textures/items/px_minigun"
+    },
+    "px_bazooka": {
+      "textures": "textures/items/px_bazooka"
+    },
+    "px_balisong": {
+      "textures": "textures/items/px_balisong"
+    },
+    "px_karambit": {
+      "textures": "textures/items/px_karambit"
+    },
+    "px_turret": {
+      "textures": "textures/items/px_turret"
+    },
+    "px_grenade_frag": {
+      "textures": "textures/items/px_grenade_frag"
+    },
+    "px_grenade_smoke": {
+      "textures": "textures/items/px_grenade_smoke"
+    },
+    "px_grenade_molotov": {
+      "textures": "textures/items/px_grenade_molotov"
+    },
+    "px_ammo": {
+      "textures": "textures/items/px_ammo"
+    },
+    "px_rocket": {
+      "textures": "textures/items/px_rocket"
+    }
+  }
+}
