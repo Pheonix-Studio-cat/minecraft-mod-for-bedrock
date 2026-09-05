@@ -8,6 +8,22 @@
 
 import { world, system } from "@minecraft/server";
 
+/* ---------------------------------------------------------------------- *
+ * Diagnose                                                               *
+ *                                                                        *
+ * Fehler wurden frueher stillschweigend verschluckt. Jetzt landet jeder   *
+ * in dieser Liste und im Inhaltsprotokoll, abrufbar im Spiel mit          *
+ *   /scriptevent px:diag                                                  *
+ * ---------------------------------------------------------------------- */
+const VERSION = "1.1.0";
+const problems = [];
+
+function problem(where, error) {
+  const line = where + ": " + error;
+  if (problems.length < 20 && !problems.includes(line)) problems.push(line);
+  console.warn("[PX Weapons] " + line);
+}
+
 /* ------------------------------------------------------------------ *
  * Konfiguration - hier kannst du alles ohne Code-Kenntnisse anpassen. *
  * ------------------------------------------------------------------ */
@@ -118,6 +134,28 @@ function sound(dimension, id, location, volume = 1, pitch = 1) {
   }
 }
 
+/**
+ * Fuegt Schaden zu und faellt auf einfachere Aufrufformen zurueck, falls die
+ * API-Version die Optionen nicht kennt. Frueher schlug der Aufruf in dem Fall
+ * stumm fehl - die Waffe traf, richtete aber nichts aus.
+ */
+function dealDamage(target, amount, cause, source) {
+  const attempts = [
+    () => target.applyDamage(amount, { cause, damagingEntity: source }),
+    () => target.applyDamage(amount, { cause }),
+    () => target.applyDamage(amount),
+  ];
+  for (let i = 0; i < attempts.length; i++) {
+    try {
+      attempts[i]();
+      return true;
+    } catch (error) {
+      if (i === attempts.length - 1) problem("Schaden", String(error));
+    }
+  }
+  return false;
+}
+
 function tell(player, message) {
   try {
     player.onScreenDisplay.setActionBar(message);
@@ -223,11 +261,7 @@ function fireOnce(player, gun) {
 
     if (victim) {
       reach = victim.distance;
-      try {
-        victim.entity.applyDamage(gun.dmg, { cause: "projectile", damagingEntity: player });
-      } catch {
-        /* ignorieren */
-      }
+      dealDamage(victim.entity, gun.dmg, "projectile", player);
       particle(dimension, "minecraft:critical_hit_emitter", victim.entity.location);
     }
 
@@ -593,11 +627,7 @@ function tickTurrets() {
       particle(turret.dimension, "minecraft:basic_flame_particle", add(muzzle, scale(direction, 0.9)));
       sound(turret.dimension, "random.bow", turret.location, 0.8, 1.8);
 
-      try {
-        target.applyDamage(CONFIG.turretDamage, { cause: "projectile" });
-      } catch {
-        /* ignorieren */
-      }
+      dealDamage(target, CONFIG.turretDamage, "projectile", turret);
     }
   }
 }
@@ -630,7 +660,7 @@ function karambitLunge(player) {
       .getEntitiesFromRay(origin, direction, { maxDistance: 3.2 })
       .filter((h) => h.entity && h.entity.id !== player.id);
     for (const hit of hits.slice(0, 2)) {
-      hit.entity.applyDamage(5, { cause: "entityAttack", damagingEntity: player });
+      dealDamage(hit.entity, 5, "entityAttack", player);
     }
   } catch {
     /* ignorieren */
@@ -677,21 +707,130 @@ system.runInterval(() => {
 
 system.runInterval(tickTurrets, 5);
 
-// Munitionsanzeige, solange eine Waffe in der Hand ist.
+/* ---------------------------------------------------------------------- *
+ * Fadenkreuz                                                             *
+ *                                                                        *
+ * Bedrock erlaubt es nicht, aus einem Skript direkt etwas ins HUD zu      *
+ * zeichnen. Der Umweg: das Skript setzt den Titeltext auf ein einzelnes   *
+ * Leerzeichen (unsichtbar), und ui/hud_screen.json blendet das Fadenkreuz *
+ * genau dann ein, wenn der Titeltext diesem Signal entspricht.            *
+ * ---------------------------------------------------------------------- */
+const CROSSHAIR_MARKER = " ";
+const crosshairOn = new Set();
+
+function heldItem(player) {
+  try {
+    return player.getComponent("minecraft:equippable")?.getEquipment("Mainhand");
+  } catch (error) {
+    problem("Handslot", String(error));
+    return undefined;
+  }
+}
+
+function isRanged(itemId) {
+  return Boolean(GUNS[itemId]) || itemId === "px:bazooka";
+}
+
+function setCrosshair(player, wanted) {
+  const active = crosshairOn.has(player.id);
+  try {
+    if (wanted) {
+      // Regelmaessig auffrischen, damit der Titel nicht auslaeuft.
+      player.onScreenDisplay.setTitle(CROSSHAIR_MARKER, {
+        fadeInDuration: 0,
+        stayDuration: 40,
+        fadeOutDuration: 0,
+      });
+      crosshairOn.add(player.id);
+    } else if (active) {
+      player.onScreenDisplay.clearTitle();
+      crosshairOn.delete(player.id);
+    }
+  } catch (error) {
+    problem("Fadenkreuz", String(error));
+  }
+}
+
+// Fadenkreuz und Munitionsanzeige, solange eine Schusswaffe in der Hand ist.
 system.runInterval(() => {
   for (const player of world.getPlayers()) {
-    let held;
-    try {
-      held = player.getComponent("minecraft:equippable")?.getEquipment("Mainhand");
-    } catch {
-      continue;
-    }
-    if (held && (GUNS[held.typeId] || held.typeId === "px:bazooka")) {
-      showAmmo(player, held.typeId);
-    }
+    const held = heldItem(player);
+    const ranged = held ? isRanged(held.typeId) : false;
+    setCrosshair(player, ranged);
+    if (ranged) showAmmo(player, held.typeId);
   }
 }, 10);
 
-world.afterEvents.worldLoad?.subscribe?.(() => {
-  console.warn("[PX Weapons] geladen - " + Object.keys(GUNS).length + " Schusswaffen aktiv");
+/* ---------------------------------------------------------------------- *
+ * Befehle                                                                *
+ * ---------------------------------------------------------------------- */
+
+const RECIPE_HELP = [
+  "§6PX Weapons - Rezepte§r  (Werkbank, I=Eisen S=Stock R=Redstone",
+  "§7G=Glas P=Schiesspulver T=Faden C=Kohle F=Glasflasche)",
+  "",
+  "§ePistole§r      II / S_",
+  "§eMP§r           III / SR_",
+  "§eSturmgewehr§r  III / SRI",
+  "§eSchrotflinte§r III / SS_",
+  "§eScharfschuetze§r _G_ / III / SI_",
+  "§eMinigun§r      III / IRI / SI_",
+  "§eBazooka§r      III / PRI / _S_",
+  "§eBalisong§r     I_ / IS",
+  "§eKarambit§r     II / TS",
+  "§eGeschuetzturm§r _I_ / IRI / IPI",
+  "",
+  "§7Formlos (Reihenfolge egal):§r",
+  "§eMunition x8§r        I + P",
+  "§eRakete x2§r          I + P + R",
+  "§eSplittergranate x2§r I + P + P",
+  "§eRauchgranate x2§r    C + C + P",
+  "§eBrandflasche x2§r    F + C + T",
+];
+
+function sendDiagnosis(player) {
+  const lines = [
+    "§6PX Weapons " + VERSION + "§r",
+    "§7Skripte laufen.§r Wenn du das siehst, ist das Behavior-Pack aktiv.",
+    "Schusswaffen: §f" + Object.keys(GUNS).length + "§r",
+    "Munition im Inventar: §f" + countItem(player, AMMO) + "§r",
+    "Raketen im Inventar: §f" + countItem(player, ROCKET) + "§r",
+    "Aktive Raketen: §f" + rockets.length + "§r, Granaten: §f" + grenades.length + "§r",
+    problems.length
+      ? "§cFehler (" + problems.length + "):§r " + problems.slice(0, 5).join(" | ")
+      : "§aKeine Fehler aufgezeichnet.§r",
+    "§7Fehlen die Texturen und heissen die Items 'item.px:...', dann ist das",
+    "§7Resource-Pack nicht aktiv.§r",
+  ];
+  for (const line of lines) player.sendMessage(line);
+}
+
+system.afterEvents.scriptEventReceive.subscribe((event) => {
+  const player = event.sourceEntity;
+  const send = (line) => {
+    if (player && typeof player.sendMessage === "function") player.sendMessage(line);
+    else world.sendMessage(line);
+  };
+  if (event.id === "px:diag") {
+    if (player && typeof player.sendMessage === "function") sendDiagnosis(player);
+    else world.sendMessage("§6PX Weapons " + VERSION + "§r - Skripte laufen.");
+  } else if (event.id === "px:recipes") {
+    for (const line of RECIPE_HELP) send(line);
+  } else if (event.id === "px:help") {
+    send("§6PX Weapons§r - /scriptevent px:recipes  ·  /scriptevent px:diag");
+  }
+});
+
+// Startmeldung: sichtbarer Beleg dafuer, dass die Skripte ueberhaupt laufen.
+// Bleibt aus, wenn das Behavior-Pack oder die Skript-API fehlt.
+system.run(() => {
+  try {
+    world.sendMessage(
+      "§6PX Weapons " + VERSION + "§r geladen. §7/scriptevent px:recipes§r für Rezepte, " +
+      "§7/scriptevent px:diag§r für Diagnose.");
+  } catch (error) {
+    console.warn("[PX Weapons] Startmeldung fehlgeschlagen: " + error);
+  }
+  console.warn("[PX Weapons] " + VERSION + " geladen, " +
+               Object.keys(GUNS).length + " Schusswaffen aktiv");
 });

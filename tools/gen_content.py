@@ -186,13 +186,11 @@ def build_lang():
             lines.append("item.%s.name=%s" % (ident, names[name]))
             lines.append("item.%s=%s" % (ident, names[name]))
         lines.append("")
-        for pack in (BP, RP):
-            path = os.path.join(pack, "texts", lang + ".lang")
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            with open(path, "w") as fh:
-                fh.write("\n".join(lines))
-        for pack in (BP, RP):
-            dump(os.path.join(pack, "texts", "languages.json"), ["de_DE", "en_US"])
+        path = os.path.join(RP, "texts", lang + ".lang")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as fh:
+            fh.write("\n".join(lines))
+    dump(os.path.join(RP, "texts", "languages.json"), ["de_DE", "en_US"])
 
 
 def build_turret():

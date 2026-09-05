@@ -383,6 +383,119 @@ footer .disclaimer {
 footer p { margin: 6px 0; }
 footer a { color: var(--accent); }
 
+/* ------------------------------------------------------------- Rezepte */
+
+.recipe-list {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+  align-items: start;   /* Karten wachsen mit ihrem Inhalt, statt auf
+                           Zeilenhoehe gestreckt zu werden */
+}
+
+@media (min-width: 720px) {
+  .recipe-list { grid-template-columns: repeat(2, 1fr); }
+}
+
+.recipe {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  /* kein flex-wrap: sonst rutscht das Ergebnis bei dreireihigen Rezepten
+     in eine zweite Zeile und damit aus der Karte heraus */
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+
+.bench {
+  display: grid;
+  grid-template-columns: repeat(3, 34px);
+  grid-auto-rows: 34px;
+  gap: 3px;
+  padding: 5px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  flex: none;
+}
+
+/* Formlose Rezepte: eine Reihe nebeneinander, nicht untereinander. */
+.bench.shapeless {
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: 34px;
+}
+
+.cell {
+  /* Feste Groesse: Rasterspuren allein reichten nicht, die Zellen wuchsen
+     ueber ihre Spur hinaus und ragten aus dem Raster heraus. */
+  width: 34px;
+  height: 34px;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #14171d;
+  background: var(--bg);
+}
+
+.cell.blank { opacity: .35; }
+.cell.filled { border-color: rgba(0,0,0,.25); }
+
+.arrow { color: var(--muted); font-size: 20px; flex: none; }
+
+.result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;        /* erlaubt Umbruch im Namen statt Ueberlauf */
+  flex: 1 1 auto;
+}
+
+.result .name { overflow-wrap: anywhere; }
+
+.result img {
+  width: 34px; height: 34px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  flex: none;
+}
+
+.result .name { font-weight: 600; font-size: 15px; }
+
+.result .count { color: var(--muted); font-size: 13px; }
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+
+.swatch {
+  width: 18px; height: 18px;
+  border-radius: 4px;
+  border: 1px solid rgba(0,0,0,.25);
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #14171d;
+}
+
 .empty {
   padding: 44px;
   text-align: center;
@@ -410,6 +523,183 @@ SEARCH_JS = """
   });
 })();
 """
+
+
+# Zutaten: Kuerzel, Anzeigename und Farbe fuer die Rezeptraster.
+# Es werden keine Minecraft-Texturen verwendet, nur eigene Farbfelder.
+INGREDIENTS = {
+    "minecraft:iron_ingot":   ("I", "Eisenbarren", "#d9dde2"),
+    "minecraft:stick":        ("S", "Stock", "#b58c56"),
+    "minecraft:redstone":     ("R", "Redstone", "#d05646"),
+    "minecraft:glass":        ("G", "Glas", "#a9d9e8"),
+    "minecraft:gunpowder":    ("P", "Schießpulver", "#9aa0a6"),
+    "minecraft:string":       ("T", "Faden", "#e8e8e8"),
+    "minecraft:coal":         ("C", "Kohle", "#6b6b6b"),
+    "minecraft:glass_bottle": ("F", "Glasflasche", "#b9dccb"),
+}
+
+
+def read_pack_items(behavior_pack, resource_pack):
+    """Sammelt id -> {icon, name} aus Item-Definitionen und Sprachdatei."""
+    items = {}
+    folder = os.path.join(ROOT, behavior_pack, "items")
+    for name in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
+        if not name.endswith(".json"):
+            continue
+        with open(os.path.join(folder, name), encoding="utf-8") as fh:
+            doc = json.load(fh)
+        block = doc.get("minecraft:item", {})
+        ident = block.get("description", {}).get("identifier")
+        icon = block.get("components", {}).get("minecraft:icon", {})
+        if ident:
+            items[ident] = {
+                "icon": icon.get("texture") if isinstance(icon, dict) else icon,
+                "name": ident,
+            }
+
+    lang = os.path.join(ROOT, resource_pack, "texts", "de_DE.lang")
+    if os.path.exists(lang):
+        with open(lang, encoding="utf-8") as fh:
+            for line in fh:
+                if "=" not in line:
+                    continue
+                key, value = line.rstrip("\n").split("=", 1)
+                if key.startswith("item.") and key.endswith(".name"):
+                    ident = key[len("item."):-len(".name")]
+                    if ident in items:
+                        items[ident]["name"] = value
+    return items
+
+
+def read_recipes(behavior_pack):
+    """Liest alle Rezepte eines Behavior-Packs in einheitlicher Form."""
+    folder = os.path.join(ROOT, behavior_pack, "recipes")
+    recipes = []
+    for name in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
+        if not name.endswith(".json"):
+            continue
+        with open(os.path.join(folder, name), encoding="utf-8") as fh:
+            doc = json.load(fh)
+
+        shaped = doc.get("minecraft:recipe_shaped")
+        if shaped:
+            key = {k: v["item"] for k, v in shaped["key"].items()}
+            grid = [[key.get(ch) for ch in row] for row in shaped["pattern"]]
+            width = max(len(row) for row in grid)
+            for row in grid:
+                row.extend([None] * (width - len(row)))
+            recipes.append({
+                "kind": "shaped",
+                "grid": grid,
+                "result": shaped["result"]["item"],
+                "count": shaped["result"].get("count", 1),
+            })
+
+        shapeless = doc.get("minecraft:recipe_shapeless")
+        if shapeless:
+            recipes.append({
+                "kind": "shapeless",
+                "items": [i["item"] for i in shapeless["ingredients"]],
+                "result": shapeless["result"]["item"],
+                "count": shapeless["result"].get("count", 1),
+            })
+    return recipes
+
+
+def cell(item):
+    if not item:
+        return '<div class="cell blank"></div>'
+    letter, label, color = INGREDIENTS.get(item, ("?", item, "#cccccc"))
+    return ('<div class="cell filled" style="background:%s" title="%s">%s</div>'
+            % (esc(color), esc(label), esc(letter)))
+
+
+def recipe_block(recipe, items, depth):
+    up = "../" * depth
+    result = items.get(recipe["result"], {})
+    icon = result.get("icon")
+    image = ('<img src="%simg/%s/%s.png" alt="" width="34" height="34">'
+             % (up, esc(recipe["_addon"]), esc(icon))) if icon else ""
+    count = ('<span class="count">&times;%d</span>' % recipe["count"]
+             if recipe["count"] > 1 else "")
+
+    if recipe["kind"] == "shaped":
+        cells = "".join(cell(i) for row in recipe["grid"] for i in row)
+        columns = len(recipe["grid"][0])
+        bench = ('<div class="bench" style="grid-template-columns:repeat(%d,34px)">%s</div>'
+                 % (columns, cells))
+    else:
+        bench = ('<div class="bench shapeless">%s</div>'
+                 % "".join(cell(i) for i in recipe["items"]))
+
+    return ('<div class="recipe">%s<span class="arrow">&rarr;</span>'
+            '<div class="result">%s<span><span class="name">%s</span> %s</span></div></div>'
+            % (bench, image, esc(result.get("name", recipe["result"])), count))
+
+
+def build_recipes_page(manifest, addon, generated):
+    behavior = next((p for p in addon["packs"] if p.startswith("behavior_packs")), None)
+    resource = next((p for p in addon["packs"] if p.startswith("resource_packs")), None)
+    if not behavior or not resource:
+        return None
+
+    items = read_pack_items(behavior, resource)
+    recipes = read_recipes(behavior)
+    if not recipes:
+        return None
+
+    for recipe in recipes:
+        recipe["_addon"] = addon["id"]
+
+    shaped = [r for r in recipes if r["kind"] == "shaped"]
+    shapeless = [r for r in recipes if r["kind"] == "shapeless"]
+
+    used = set()
+    for recipe in recipes:
+        if recipe["kind"] == "shaped":
+            used.update(i for row in recipe["grid"] for i in row if i)
+        else:
+            used.update(recipe["items"])
+
+    legend = "".join(
+        '<span><span class="swatch" style="background:%s">%s</span>%s</span>'
+        % (esc(INGREDIENTS[i][2]), esc(INGREDIENTS[i][0]), esc(INGREDIENTS[i][1]))
+        for i in sorted(used) if i in INGREDIENTS)
+
+    sections = ""
+    if shaped:
+        sections += ('<h2 style="font-size:20px;margin:26px 0 4px">Werkbank</h2>'
+                     '<p style="color:var(--muted);margin-top:0">'
+                     'Die Anordnung muss stimmen. Leere Felder bleiben leer.</p>'
+                     '<div class="recipe-list">%s</div>'
+                     % "".join(recipe_block(r, items, 1) for r in shaped))
+    if shapeless:
+        sections += ('<h2 style="font-size:20px;margin:32px 0 4px">Formlos</h2>'
+                     '<p style="color:var(--muted);margin-top:0">'
+                     'Reihenfolge und Position sind egal.</p>'
+                     '<div class="recipe-list">%s</div>'
+                     % "".join(recipe_block(r, items, 1) for r in shapeless))
+
+    body = """%s
+<main class="wrap">
+  <div class="detail-head">
+    <a class="back" href="../addon/%s.html">&larr; %s</a>
+    <h1>Rezepte</h1>
+    <p class="tagline">Alle %d Rezepte von %s. Bewusst günstig gehalten.</p>
+  </div>
+  %s
+  <div class="legend">%s</div>
+  <p style="color:var(--muted);font-size:14px;margin-top:26px">
+    Im Spiel gibt es dieselbe Liste per Befehl:
+    <code>/scriptevent px:recipes</code>
+  </p>
+</main>
+%s""" % (header(manifest, 1), esc(addon["id"]), esc(addon["name"]),
+         len(recipes), esc(addon["name"]), sections, legend,
+         footer(manifest, generated))
+
+    return page("Rezepte – %s" % addon["name"],
+                "Alle Crafting-Rezepte von %s" % addon["name"], body, depth=1)
 
 
 def esc(value):
@@ -595,6 +885,8 @@ def build_detail(manifest, addon, size, generated):
     <div class="panel">
       <a class="btn primary" href="../downloads/%s" download
          style="width:100%%;justify-content:center">Herunterladen</a>
+      <a class="btn ghost" href="../recipes/%s.html"
+         style="width:100%%;justify-content:center;margin-top:10px">Rezepte ansehen</a>
       <ul class="facts" style="margin-top:18px">
         <li><span class="k">Version</span><span class="v">%s</span></li>
         <li><span class="k">Dateigröße</span><span class="v">%s</span></li>
@@ -612,6 +904,7 @@ def build_detail(manifest, addon, size, generated):
 %s""" % (header(manifest, 1), esc(addon["name"]), esc(addon["tagline"]), tags,
          esc(addon["accent"]), preview_images(addon, 1), esc(addon["accent"]),
          esc(addon["description"]), features, esc(download_name(addon)),
+         esc(addon["id"]),
          esc(addon["version"]), esc(size), esc(addon["minEngineVersion"]),
          esc(beta), footer(manifest, generated))
 
@@ -657,12 +950,26 @@ def main():
             src = os.path.join(ROOT, pack, "textures", "items", name + ".png")
             if not os.path.exists(src):
                 raise SystemExit("Vorschaubild fehlt: %s" % src)
-            dst = os.path.join(SITE, "img", addon["id"], name + ".png")
-            os.makedirs(os.path.dirname(dst), exist_ok=True)
-            shutil.copy2(src, dst)
+
+        # Alle Item-Texturen des Packs uebernehmen: die Vorschau braucht
+        # einige, die Rezeptseite zeigt jedes Ergebnis mit seinem Icon.
+        resource = next((x for x in addon["packs"]
+                         if x.startswith("resource_packs")), None)
+        if resource:
+            source_dir = os.path.join(ROOT, resource, "textures", "items")
+            target_dir = os.path.join(SITE, "img", addon["id"])
+            os.makedirs(target_dir, exist_ok=True)
+            for name in sorted(os.listdir(source_dir)):
+                if name.endswith(".png"):
+                    shutil.copy2(os.path.join(source_dir, name),
+                                 os.path.join(target_dir, name))
 
         write(os.path.join(SITE, "addon", addon["id"] + ".html"),
               build_detail(manifest, addon, sizes[addon["id"]], generated))
+
+        recipes_page = build_recipes_page(manifest, addon, generated)
+        if recipes_page:
+            write(os.path.join(SITE, "recipes", addon["id"] + ".html"), recipes_page)
 
     write(os.path.join(SITE, "index.html"),
           build_index(manifest, sizes, generated))

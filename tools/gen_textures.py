@@ -11,6 +11,7 @@ import zlib
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ITEMS = os.path.join(ROOT, "resource_packs", "px_weapons_rp", "textures", "items")
 ENTITY = os.path.join(ROOT, "resource_packs", "px_weapons_rp", "textures", "entity")
+UI = os.path.join(ROOT, "resource_packs", "px_weapons_rp", "textures", "ui")
 
 PALETTE = {
     ".": (0, 0, 0, 0),
@@ -347,6 +348,47 @@ ART["px_rocket"] = """
 """
 
 
+
+def crosshair(size=21):
+    """Fadenkreuz: vier Striche und ein Punkt, weiss mit dunkler Kontur.
+
+    Die Kontur sorgt dafuer, dass es auf hellem wie dunklem Hintergrund
+    sichtbar bleibt.
+    """
+    mid = size // 2
+    white = set()
+    for offset in range(2, 7):
+        white.add((mid, mid - offset))
+        white.add((mid, mid + offset))
+        white.add((mid - offset, mid))
+        white.add((mid + offset, mid))
+    white.add((mid, mid))
+
+    outline = set()
+    for x, y in white:
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                spot = (x + dx, y + dy)
+                if spot not in white and 0 <= spot[0] < size and 0 <= spot[1] < size:
+                    outline.add(spot)
+
+    clear = (0, 0, 0, 0)
+    bright = (255, 255, 255, 235)
+    dark = (0, 0, 0, 170)
+    rows = []
+    for y in range(size):
+        row = []
+        for x in range(size):
+            if (x, y) in white:
+                row.append(bright)
+            elif (x, y) in outline:
+                row.append(dark)
+            else:
+                row.append(clear)
+        rows.append(row)
+    return size, rows
+
+
 def flat(size, base, accent, border):
     rows = []
     for y in range(size):
@@ -367,6 +409,10 @@ def main():
     for name, art in ART.items():
         from_art(os.path.join(ITEMS, name + ".png"), art)
 
+    # Fadenkreuz fuer die HUD-Ueberlagerung
+    size, rows = crosshair()
+    write_png(os.path.join(UI, "px_crosshair.png"), size, size, rows)
+
     # Turret-Entity-Textur: schlichtes Metallmuster, alle UVs zeigen darauf.
     write_png(os.path.join(ENTITY, "px_turret.png"), 64, 64,
               flat(64, PALETTE["d"], PALETTE["g"], PALETTE["k"]))
@@ -376,7 +422,7 @@ def main():
         write_png(os.path.join(ROOT, pack, "pack_icon.png"), 64, 64,
                   flat(64, PALETTE["d"], PALETTE["c"], PALETTE["k"]))
 
-    print("Texturen erzeugt:", len(ART) + 3)
+    print("Texturen erzeugt:", len(ART) + 4)
 
 
 if __name__ == "__main__":
