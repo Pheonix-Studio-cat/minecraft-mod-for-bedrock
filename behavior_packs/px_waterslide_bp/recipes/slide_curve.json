@@ -1,0 +1,32 @@
+{
+  "format_version": "1.20.10",
+  "minecraft:recipe_shaped": {
+    "description": {
+      "identifier": "px:slide_curve"
+    },
+    "tags": [
+      "crafting_table"
+    ],
+    "unlock": [
+      {
+        "context": "AlwaysUnlocked"
+      }
+    ],
+    "pattern": [
+      "G G",
+      "GDG"
+    ],
+    "key": {
+      "G": {
+        "item": "minecraft:glass"
+      },
+      "D": {
+        "item": "minecraft:blue_dye"
+      }
+    },
+    "result": {
+      "item": "px:slide_curve",
+      "count": 4
+    }
+  }
+}

@@ -1,438 +1,384 @@
 #!/usr/bin/env python3
-"""Prueft das Add-On auf Konsistenz, bevor es ins Spiel geht."""
+"""Prueft alle Add-Ons des Katalogs auf Konsistenz, bevor sie ins Spiel gehen.
+
+Ausfuehren mit:  python3 tools/validate.py
+
+Die Pruefungen richten sich nach addons.json. Ein neues Add-On wird damit
+automatisch mitgeprueft, sobald es dort eingetragen ist.
+"""
 import json
 import os
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BP = os.path.join(ROOT, "behavior_packs", "px_weapons_bp")
-RP = os.path.join(ROOT, "resource_packs", "px_weapons_rp")
+MANIFEST = os.path.join(ROOT, "addons.json")
 
 errors = []
-checked = 0
+notes = []
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from ingredients import LETTER  # noqa: E402
+
+
+def fail(message):
+    errors.append(message)
 
 
 def load(path):
-    global checked
-    with open(path) as fh:
-        try:
-            data = json.load(fh)
-            checked += 1
-            return data
-        except json.JSONDecodeError as exc:
-            errors.append("Ungueltiges JSON in %s: %s" % (path, exc))
-            return None
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return json.load(fh)
+    except FileNotFoundError:
+        fail("Datei fehlt: %s" % os.path.relpath(path, ROOT))
+    except json.JSONDecodeError as exc:
+        fail("Ungueltiges JSON in %s: %s" % (os.path.relpath(path, ROOT), exc))
+    return None
 
 
 def walk_json(root):
     for base, _, files in os.walk(root):
-        for name in files:
+        for name in sorted(files):
             if name.endswith(".json"):
                 yield os.path.join(base, name)
 
 
-# 1) Alle JSON-Dateien parsen
-docs = {}
-for pack in (BP, RP):
-    for path in walk_json(pack):
-        docs[path] = load(path)
+def read_lang(path):
+    with open(path, encoding="utf-8") as fh:
+        return dict(line.rstrip("\n").split("=", 1) for line in fh if "=" in line)
 
-# 2) Items einsammeln
-items = {}
-for path, doc in docs.items():
-    if isinstance(doc, dict) and "minecraft:item" in doc:
-        desc = doc["minecraft:item"]["description"]
-        items[desc["identifier"]] = (path, doc["minecraft:item"]["components"])
 
-if not items:
-    errors.append("Keine Items gefunden")
+# ---------------------------------------------------------------------------
+# Katalog
+# ---------------------------------------------------------------------------
 
-# 3) Icons muessen als PNG existieren und in item_texture.json stehen
-atlas = docs.get(os.path.join(RP, "textures", "item_texture.json")) or {}
-atlas_data = atlas.get("texture_data", {})
-for ident, (path, components) in items.items():
-    raw_icon = components.get("minecraft:icon")
-    icon = raw_icon if isinstance(raw_icon, str) else (raw_icon or {}).get("texture")
-    if not icon:
-        errors.append("%s hat kein minecraft:icon" % ident)
-        continue
-    if icon not in atlas_data:
-        errors.append("%s: Textur '%s' fehlt in item_texture.json" % (ident, icon))
-    png = os.path.join(RP, "textures", "items", icon + ".png")
-    if not os.path.exists(png):
-        errors.append("%s: PNG fehlt -> %s" % (ident, png))
+library = load(MANIFEST) or {}
+if not isinstance(library, dict):
+    print("addons.json ist kein Objekt")
+    sys.exit(1)
 
-for icon, entry in atlas_data.items():
-    png = os.path.join(RP, entry["textures"] + ".png")
-    if not os.path.exists(png):
-        errors.append("item_texture.json verweist auf fehlendes PNG: %s" % png)
+for key in ("studio", "title", "tagline", "intro", "repository", "addons"):
+    if key not in library:
+        fail("addons.json: Feld '%s' fehlt" % key)
 
-# 4) Rezepte pruefen
-recipe_results = []
-for path, doc in docs.items():
-    if not isinstance(doc, dict):
-        continue
-    shaped = doc.get("minecraft:recipe_shaped")
-    shapeless = doc.get("minecraft:recipe_shapeless")
-    if shaped:
-        pattern = shaped["pattern"]
-        widths = {len(row) for row in pattern}
-        if len(widths) != 1:
-            errors.append("%s: Musterzeilen unterschiedlich lang %s" % (path, sorted(widths)))
-        if len(pattern) > 3 or max(widths) > 3:
-            errors.append("%s: Muster passt nicht in ein 3x3-Raster" % path)
-        used = {ch for row in pattern for ch in row if ch != " "}
-        defined = set(shaped["key"])
-        if used - defined:
-            errors.append("%s: Zeichen ohne Key: %s" % (path, sorted(used - defined)))
-        if defined - used:
-            errors.append("%s: Key ohne Verwendung: %s" % (path, sorted(defined - used)))
-        if not shaped.get("unlock"):
-            errors.append("%s: 'unlock' fehlt - Rezept bleibt im Spiel gesperrt" % path)
-        recipe_results.append((path, shaped["result"]["item"]))
-    if shapeless:
-        if not shapeless["ingredients"]:
-            errors.append("%s: Rezept ohne Zutaten" % path)
-        if not shapeless.get("unlock"):
-            errors.append("%s: 'unlock' fehlt - Rezept bleibt im Spiel gesperrt" % path)
-        recipe_results.append((path, shapeless["result"]["item"]))
+seen_ids = set()
+total_json = 0
 
-for path, result in recipe_results:
-    if result.startswith("px:") and result not in items:
-        errors.append("%s: Ergebnis '%s' ist kein definiertes Item" % (path, result))
 
-crafted = {r for _, r in recipe_results}
-for ident in items:
-    if ident not in crafted:
-        errors.append("%s hat kein Crafting-Rezept" % ident)
+def check_addon(addon):
+    """Prueft ein einzelnes Add-On aus dem Katalog."""
+    global total_json
+    name = addon.get("id", "<ohne id>")
+    tag = "addons.json/%s" % name
 
-# 5) Doppelte shapeless-Zutatenmengen wuerden sich gegenseitig blockieren
-signatures = {}
-for path, doc in docs.items():
-    shapeless = doc.get("minecraft:recipe_shapeless") if isinstance(doc, dict) else None
-    if not shapeless:
-        continue
-    sig = tuple(sorted(i["item"] for i in shapeless["ingredients"]))
-    if sig in signatures:
-        errors.append("Mehrdeutiges Rezept: %s und %s nutzen %s"
-                      % (os.path.basename(path), os.path.basename(signatures[sig]), list(sig)))
-    signatures[sig] = path
+    for key in ("id", "name", "tagline", "description", "version",
+                "minEngineVersion", "accent", "packs"):
+        if key not in addon:
+            fail("%s: Feld '%s' fehlt" % (tag, key))
+    if addon.get("id") in seen_ids:
+        fail("addons.json: doppelte id '%s'" % name)
+    seen_ids.add(addon.get("id"))
 
-# 6) Sprachschluessel
-for lang in ("de_DE", "en_US"):
-    path = os.path.join(RP, "texts", lang + ".lang")
-    if not os.path.exists(path):
-        errors.append("Sprachdatei fehlt: %s" % path)
-        continue
-    with open(path) as fh:
-        keys = {line.split("=", 1)[0] for line in fh if "=" in line}
-    for ident in items:
-        if "item.%s.name" % ident not in keys:
-            errors.append("%s: Schluessel 'item.%s.name' fehlt" % (lang, ident))
-    for key in ("pack.name", "pack.description"):
-        if key not in keys:
-            errors.append("%s: Schluessel '%s' fehlt" % (lang, key))
+    accent = addon.get("accent", "")
+    if not (isinstance(accent, str) and accent.startswith("#") and len(accent) in (4, 7)):
+        fail("%s: 'accent' ist keine Hex-Farbe (%r)" % (tag, accent))
 
-# 7) Manifeste: Abhaengigkeiten muessen sich gegenseitig treffen
-bp_manifest = docs.get(os.path.join(BP, "manifest.json"))
-rp_manifest = docs.get(os.path.join(RP, "manifest.json"))
-if bp_manifest and rp_manifest:
-    bp_uuid = bp_manifest["header"]["uuid"]
-    rp_uuid = rp_manifest["header"]["uuid"]
-    bp_deps = {d.get("uuid") for d in bp_manifest.get("dependencies", [])}
-    rp_deps = {d.get("uuid") for d in rp_manifest.get("dependencies", [])}
-    if rp_uuid not in bp_deps:
-        errors.append("BP-Manifest verweist nicht auf das RP")
-    if bp_uuid not in rp_deps:
-        errors.append("RP-Manifest verweist nicht auf das BP")
-    uuids = [bp_uuid, rp_uuid] + [m["uuid"] for m in bp_manifest["modules"]] \
-        + [m["uuid"] for m in rp_manifest["modules"]]
+    version = str(addon.get("version", "0.0.0"))
+    if len(version.split(".")) != 3:
+        fail("%s: 'version' erwartet x.y.z (%r)" % (tag, version))
+
+    behavior = next((p for p in addon.get("packs", [])
+                     if p.startswith("behavior_packs")), None)
+    resource = next((p for p in addon.get("packs", [])
+                     if p.startswith("resource_packs")), None)
+    if not behavior or not resource:
+        fail("%s: braucht je ein Behavior- und ein Resource-Pack" % tag)
+        return
+
+    BP = os.path.join(ROOT, behavior)
+    RP = os.path.join(ROOT, resource)
+    for pack in (BP, RP):
+        if not os.path.isdir(pack):
+            fail("%s: Ordner fehlt -> %s" % (tag, os.path.relpath(pack, ROOT)))
+            return
+
+    # --- alle JSON-Dateien parsen -----------------------------------------
+    docs = {}
+    for pack in (BP, RP):
+        for path in walk_json(pack):
+            docs[path] = load(path)
+            total_json += 1
+
+    # --- Manifeste ---------------------------------------------------------
+    bp_manifest = docs.get(os.path.join(BP, "manifest.json"))
+    rp_manifest = docs.get(os.path.join(RP, "manifest.json"))
+    if not (isinstance(bp_manifest, dict) and isinstance(rp_manifest, dict)):
+        fail("%s: Manifest fehlt oder ist ungueltig" % tag)
+        return
+
+    wanted = [int(x) for x in version.split(".")]
+    uuids = []
+    for manifest, pack, label in ((bp_manifest, BP, "Behavior-Pack"),
+                                  (rp_manifest, RP, "Resource-Pack")):
+        if manifest["header"]["version"] != wanted:
+            fail("%s/%s: Manifest-Version %s passt nicht zum Katalog (%s)"
+                 % (tag, label, manifest["header"]["version"], wanted))
+        uuids.append(manifest["header"]["uuid"])
+        uuids.extend(m["uuid"] for m in manifest["modules"])
+
+    if rp_manifest["header"]["uuid"] not in {d.get("uuid") for d in bp_manifest.get("dependencies", [])}:
+        fail("%s: Behavior-Pack verweist nicht auf das Resource-Pack" % tag)
+    if bp_manifest["header"]["uuid"] not in {d.get("uuid") for d in rp_manifest.get("dependencies", [])}:
+        fail("%s: Resource-Pack verweist nicht auf das Behavior-Pack" % tag)
     if len(set(uuids)) != len(uuids):
-        errors.append("Doppelte UUIDs in den Manifesten")
-    entry = [m for m in bp_manifest["modules"] if m["type"] == "script"]
-    if entry:
-        script = os.path.join(BP, entry[0]["entry"])
-        if not os.path.exists(script):
-            errors.append("Skript-Einstiegspunkt fehlt: %s" % script)
+        fail("%s: doppelte UUIDs in den Manifesten" % tag)
 
-# 8) Entity: Client-Definition, Geometrie und Textur muessen zusammenpassen
-client = docs.get(os.path.join(RP, "entity", "px_turret.entity.json"))
-if client:
-    desc = client["minecraft:client_entity"]["description"]
-    geo_id = desc["geometry"]["default"]
-    geo_doc = docs.get(os.path.join(RP, "models", "entity", "px_turret.geo.json")) or {}
-    geo_ids = {g["description"]["identifier"] for g in geo_doc.get("minecraft:geometry", [])}
-    if geo_id not in geo_ids:
-        errors.append("Geometrie '%s' nicht gefunden (vorhanden: %s)" % (geo_id, sorted(geo_ids)))
-    tex = os.path.join(RP, desc["textures"]["default"] + ".png")
-    if not os.path.exists(tex):
-        errors.append("Entity-Textur fehlt: %s" % tex)
+    script = None
+    for module in bp_manifest["modules"]:
+        if module["type"] == "script":
+            script = os.path.join(BP, module["entry"])
+            if not os.path.exists(script):
+                fail("%s: Skript-Einstiegspunkt fehlt -> %s" % (tag, module["entry"]))
+                script = None
 
-for pack in (BP, RP):
-    if not os.path.exists(os.path.join(pack, "pack_icon.png")):
-        errors.append("pack_icon.png fehlt in %s" % pack)
+    for pack in (BP, RP):
+        if not os.path.exists(os.path.join(pack, "pack_icon.png")):
+            fail("%s: pack_icon.png fehlt in %s"
+                 % (tag, os.path.relpath(pack, ROOT)))
 
-print("%d JSON-Dateien geprueft, %d Items, %d Rezepte"
-      % (checked, len(items), len(recipe_results)))
-# ---------------------------------------------------------------------------
-# 9) addons.json - die Datenquelle fuer Downloads und Website
-# ---------------------------------------------------------------------------
-manifest_path = os.path.join(ROOT, "addons.json")
-if not os.path.exists(manifest_path):
-    errors.append("addons.json fehlt")
-else:
-    library = load(manifest_path)
-    if not isinstance(library, dict):
-        errors.append("addons.json ist kein Objekt")
-        library = {"addons": []}
+    # --- Sprachdateien und Paketnamen --------------------------------------
+    descriptions = {}
+    for manifest, pack, label in ((bp_manifest, BP, "Behavior-Pack"),
+                                  (rp_manifest, RP, "Resource-Pack")):
+        declared = manifest["header"].get("name", "")
+        for lang in ("de_DE", "en_US"):
+            path = os.path.join(pack, "texts", lang + ".lang")
+            if not os.path.exists(path):
+                fail("%s/%s: %s.lang fehlt - die Paketliste zeigt sonst den "
+                     "rohen Schluessel '%s'" % (tag, label, lang, declared))
+                continue
+            entries = read_lang(path)
+            if declared.startswith("pack.") and declared not in entries:
+                fail("%s/%s/%s: Manifest verweist auf '%s', der Schluessel fehlt"
+                     % (tag, label, lang, declared))
+            pack_name = entries.get("pack.name", "")
+            if pack_name and version not in pack_name:
+                fail("%s/%s/%s: Paketname '%s' enthaelt die Version %s nicht"
+                     % (tag, label, lang, pack_name, version))
+            if "pack.description" not in entries:
+                fail("%s/%s/%s: 'pack.description' fehlt" % (tag, label, lang))
+            if lang == "de_DE":
+                descriptions[label] = entries.get("pack.description", "")
 
-    for key in ("studio", "title", "tagline", "intro", "repository", "addons"):
-        if key not in library:
-            errors.append("addons.json: Feld '%s' fehlt" % key)
+    if len(descriptions) == 2 and len(set(descriptions.values())) == 1:
+        fail("%s: Behavior- und Resource-Pack haben dieselbe Beschreibung" % tag)
 
-    seen_ids = set()
-    for addon in library.get("addons", []):
-        name = addon.get("id", "<ohne id>")
-        for key in ("id", "name", "tagline", "description", "version",
-                    "minEngineVersion", "accent", "packs"):
-            if key not in addon:
-                errors.append("addons.json/%s: Feld '%s' fehlt" % (name, key))
+    # --- Inhalte: Items und Bloecke ----------------------------------------
+    contents = {}          # id -> (Art, Textur-Kurzname)
+    for path, doc in docs.items():
+        if not isinstance(doc, dict):
+            continue
+        if "minecraft:item" in doc:
+            entry = doc["minecraft:item"]
+            ident = entry["description"]["identifier"]
+            raw = entry["components"].get("minecraft:icon")
+            icon = raw if isinstance(raw, str) else (raw or {}).get("texture")
+            if not icon:
+                fail("%s: %s hat kein minecraft:icon" % (tag, ident))
+            contents[ident] = ("item", icon)
+        if "minecraft:block" in doc:
+            entry = doc["minecraft:block"]
+            ident = entry["description"]["identifier"]
+            material = entry["components"].get("minecraft:material_instances", {})
+            texture = next((i.get("texture") for i in material.values()
+                            if isinstance(i, dict) and i.get("texture")), None)
+            if not texture:
+                fail("%s: %s hat keine Textur in minecraft:material_instances"
+                     % (tag, ident))
+            contents[ident] = ("block", texture)
 
-        if addon.get("id") in seen_ids:
-            errors.append("addons.json: doppelte id '%s'" % name)
-        seen_ids.add(addon.get("id"))
+            geometry = entry["components"].get("minecraft:geometry")
+            if geometry:
+                found = False
+                for geo_path in walk_json(os.path.join(RP, "models")):
+                    geo = docs.get(geo_path) or load(geo_path)
+                    for shape in (geo or {}).get("minecraft:geometry", []):
+                        if shape["description"]["identifier"] == geometry:
+                            found = True
+                if not found:
+                    fail("%s: %s verweist auf Geometrie '%s', die es nicht gibt"
+                         % (tag, ident, geometry))
 
-        accent = addon.get("accent", "")
-        if not (isinstance(accent, str) and accent.startswith("#")
-                and len(accent) in (4, 7)):
-            errors.append("addons.json/%s: 'accent' ist keine Hex-Farbe (%r)"
-                          % (name, accent))
+    if not contents:
+        fail("%s: weder Items noch Bloecke gefunden" % tag)
 
-        version = addon.get("version", "")
-        if len(str(version).split(".")) != 3:
-            errors.append("addons.json/%s: 'version' erwartet x.y.z (%r)"
-                          % (name, version))
+    # --- Texturatlanten ----------------------------------------------------
+    atlases = {}
+    for atlas_name, folder in (("item_texture.json", "items"),
+                               ("terrain_texture.json", "blocks")):
+        path = os.path.join(RP, "textures", atlas_name)
+        if os.path.exists(path):
+            data = docs.get(path) or load(path) or {}
+            for short, entry in data.get("texture_data", {}).items():
+                atlases[short] = entry["textures"]
+                png = os.path.join(RP, entry["textures"] + ".png")
+                if not os.path.exists(png):
+                    fail("%s: %s verweist auf fehlendes PNG %s"
+                         % (tag, atlas_name, os.path.relpath(png, ROOT)))
 
-        for pack in addon.get("packs", []):
-            full = os.path.join(ROOT, pack)
-            if not os.path.isdir(full):
-                errors.append("addons.json/%s: Pack-Ordner fehlt -> %s" % (name, pack))
-            elif not os.path.exists(os.path.join(full, "manifest.json")):
-                errors.append("addons.json/%s: %s hat keine manifest.json" % (name, pack))
+    for ident, (kind, texture) in contents.items():
+        if texture and texture not in atlases:
+            fail("%s: %s nutzt Textur '%s', die in keinem Atlas steht"
+                 % (tag, ident, texture))
 
-        preview = addon.get("preview", {})
-        pack = preview.get("pack")
-        if preview and not pack:
-            errors.append("addons.json/%s: preview ohne 'pack'" % name)
-        if pack and pack not in addon.get("packs", []):
-            errors.append("addons.json/%s: preview.pack '%s' steht nicht in 'packs'"
-                          % (name, pack))
-        for texture in preview.get("textures", []):
-            png = os.path.join(ROOT, pack or "", "textures", "items", texture + ".png")
-            if not os.path.exists(png):
-                errors.append("addons.json/%s: Vorschaubild fehlt -> %s"
-                              % (name, os.path.relpath(png, ROOT)))
+    # --- Namen fuer jeden Inhalt ------------------------------------------
+    for lang in ("de_DE", "en_US"):
+        path = os.path.join(RP, "texts", lang + ".lang")
+        if not os.path.exists(path):
+            continue
+        keys = set(read_lang(path))
+        for ident, (kind, _) in contents.items():
+            prefix = "tile." if kind == "block" else "item."
+            if "%s%s.name" % (prefix, ident) not in keys:
+                fail("%s/%s: Schluessel '%s%s.name' fehlt"
+                     % (tag, lang, prefix, ident))
 
-        doc_path = addon.get("docs")
-        if doc_path and not os.path.exists(os.path.join(ROOT, doc_path)):
-            errors.append("addons.json/%s: 'docs' zeigt auf %s - nicht vorhanden"
-                          % (name, doc_path))
-
-    print("addons.json: %d Add-On(s) im Katalog" % len(library.get("addons", [])))
-
-# ---------------------------------------------------------------------------
-# 10) Rezept-Hilfe im Skript gegen die echten Rezepte abgleichen
-# ---------------------------------------------------------------------------
-SCRIPT = os.path.join(BP, "scripts", "main.js")
-LETTER = {
-    "minecraft:iron_ingot": "I",
-    "minecraft:stick": "S",
-    "minecraft:redstone": "R",
-    "minecraft:glass": "G",
-    "minecraft:gunpowder": "P",
-    "minecraft:string": "T",
-    "minecraft:coal": "C",
-    "minecraft:glass_bottle": "F",
-}
-
-if not os.path.exists(SCRIPT):
-    errors.append("Skript fehlt: %s" % SCRIPT)
-else:
-    with open(SCRIPT, encoding="utf-8") as fh:
-        script = fh.read()
-
-    unknown = set()
+    # --- Rezepte -----------------------------------------------------------
+    crafted = set()
+    signatures = {}
+    recipe_strings = []
     for path, doc in docs.items():
         if not isinstance(doc, dict):
             continue
 
         shaped = doc.get("minecraft:recipe_shaped")
         if shaped:
+            pattern = shaped["pattern"]
+            widths = {len(row) for row in pattern}
+            if len(widths) != 1:
+                fail("%s: %s Musterzeilen unterschiedlich lang %s"
+                     % (tag, os.path.basename(path), sorted(widths)))
+            if len(pattern) > 3 or max(widths) > 3:
+                fail("%s: %s passt nicht in ein 3x3-Raster"
+                     % (tag, os.path.basename(path)))
+            used = {ch for row in pattern for ch in row if ch != " "}
+            defined = set(shaped["key"])
+            if used - defined:
+                fail("%s: %s Zeichen ohne Key %s"
+                     % (tag, os.path.basename(path), sorted(used - defined)))
+            if defined - used:
+                fail("%s: %s Key ohne Verwendung %s"
+                     % (tag, os.path.basename(path), sorted(defined - used)))
+            if not shaped.get("unlock"):
+                fail("%s: %s 'unlock' fehlt - Rezept bleibt im Spiel gesperrt"
+                     % (tag, os.path.basename(path)))
+            crafted.add(shaped["result"]["item"])
+
             key = {k: v["item"] for k, v in shaped["key"].items()}
             rows = []
-            for row in shaped["pattern"]:
-                out = ""
-                for ch in row:
-                    if ch == " ":
-                        out += "_"
-                    else:
-                        item = key[ch]
-                        if item not in LETTER:
-                            unknown.add(item)
-                        out += LETTER.get(item, "?")
-                rows.append(out)
-            wanted = " / ".join(rows)
-            if wanted not in script:
-                errors.append("Rezept-Hilfe im Skript fehlt oder weicht ab: "
-                              "%s erwartet '%s'"
-                              % (os.path.basename(path), wanted))
+            for row in pattern:
+                rows.append("".join("_" if ch == " " else LETTER.get(key[ch], "?")
+                                    for ch in row))
+            recipe_strings.append((os.path.basename(path), " / ".join(rows)))
+            for item in key.values():
+                if item not in LETTER:
+                    fail("Kein Kuerzel fuer '%s' in tools/validate.py" % item)
 
         shapeless = doc.get("minecraft:recipe_shapeless")
         if shapeless:
-            letters = []
+            if not shapeless["ingredients"]:
+                fail("%s: %s Rezept ohne Zutaten" % (tag, os.path.basename(path)))
+            if not shapeless.get("unlock"):
+                fail("%s: %s 'unlock' fehlt - Rezept bleibt im Spiel gesperrt"
+                     % (tag, os.path.basename(path)))
+            crafted.add(shapeless["result"]["item"])
+            signature = tuple(sorted(i["item"] for i in shapeless["ingredients"]))
+            if signature in signatures:
+                fail("%s: mehrdeutiges Rezept, %s und %s nutzen %s"
+                     % (tag, os.path.basename(path), signatures[signature],
+                        list(signature)))
+            signatures[signature] = os.path.basename(path)
+            letters = [LETTER.get(i["item"], "?") for i in shapeless["ingredients"]]
+            recipe_strings.append((os.path.basename(path), " + ".join(letters)))
             for ingredient in shapeless["ingredients"]:
-                item = ingredient["item"]
-                if item not in LETTER:
-                    unknown.add(item)
-                letters.append(LETTER.get(item, "?"))
-            wanted = " + ".join(letters)
-            if wanted not in script:
-                errors.append("Rezept-Hilfe im Skript fehlt oder weicht ab: "
-                              "%s erwartet '%s'"
-                              % (os.path.basename(path), wanted))
+                if ingredient["item"] not in LETTER:
+                    fail("Kein Kuerzel fuer '%s' in tools/validate.py"
+                         % ingredient["item"])
 
-    for item in sorted(unknown):
-        errors.append("Kein Kuerzel fuer '%s' in tools/validate.py hinterlegt" % item)
+    for ident in contents:
+        if ident not in crafted:
+            fail("%s: %s hat kein Crafting-Rezept" % (tag, ident))
 
-    # Ohne Startmeldung laesst sich im Spiel nicht erkennen, ob Skripte laufen.
-    if "world.sendMessage" not in script:
-        errors.append("Skript hat keine Startmeldung - Diagnose im Spiel unmoeglich")
+    # --- Rezepthilfe im Skript --------------------------------------------
+    if script:
+        with open(script, encoding="utf-8") as fh:
+            code = fh.read()
+        if "world.sendMessage" not in code:
+            fail("%s: Skript hat keine Startmeldung - Diagnose im Spiel unmoeglich"
+                 % tag)
+        for filename, wanted_string in recipe_strings:
+            if wanted_string not in code:
+                fail("%s: Rezepthilfe im Skript weicht ab, %s erwartet '%s'"
+                     % (tag, filename, wanted_string))
 
-# ---------------------------------------------------------------------------
-# 11) HUD-Ueberlagerung
-# ---------------------------------------------------------------------------
-hud = os.path.join(RP, "ui", "hud_screen.json")
-if not os.path.exists(hud):
-    errors.append("ui/hud_screen.json fehlt - kein Fadenkreuz")
-else:
-    doc = docs.get(hud) or load(hud)
-    texture = None
-    for name, node in (doc or {}).items():
-        if isinstance(node, dict) and node.get("type") == "image":
-            texture = node.get("texture")
-    if not texture:
-        errors.append("hud_screen.json enthaelt kein Bild-Element")
+    # --- Texturliste -------------------------------------------------------
+    listing = os.path.join(RP, "textures", "textures_list.json")
+    if not os.path.exists(listing):
+        fail("%s: textures/textures_list.json fehlt" % tag)
     else:
-        png = os.path.join(RP, texture + ".png")
-        if not os.path.exists(png):
-            errors.append("Fadenkreuz-Textur fehlt: %s" % os.path.relpath(png, ROOT))
+        listed = set(docs.get(listing) or load(listing) or [])
+        actual = set()
+        for base, _, files in os.walk(os.path.join(RP, "textures")):
+            for filename in files:
+                if filename.endswith(".png"):
+                    rel = os.path.relpath(os.path.join(base, filename), RP)
+                    actual.add(rel.replace(os.sep, "/")[:-4])
+        for missing in sorted(actual - listed):
+            fail("%s: textures_list.json fuehrt '%s' nicht auf" % (tag, missing))
+        for stale in sorted(listed - actual):
+            fail("%s: textures_list.json nennt '%s', die Datei fehlt" % (tag, stale))
 
-print("Rezept-Hilfe und HUD geprueft")
+    # --- HUD-Ueberlagerung, falls vorhanden --------------------------------
+    hud = os.path.join(RP, "ui", "hud_screen.json")
+    if os.path.exists(hud):
+        for node in (docs.get(hud) or load(hud) or {}).values():
+            if isinstance(node, dict) and node.get("type") == "image":
+                declared = node.get("size")
+                png = os.path.join(RP, node.get("texture", "") + ".png")
+                if declared and os.path.exists(png):
+                    with open(png, "rb") as fh:
+                        head = fh.read(24)
+                    width = int.from_bytes(head[16:20], "big")
+                    height = int.from_bytes(head[20:24], "big")
+                    if declared != [width, height]:
+                        fail("%s: hud_screen.json gibt %s an, die Textur ist %dx%d"
+                             % (tag, declared, width, height))
 
-# ---------------------------------------------------------------------------
-# 12) Katalogversion und Pack-Manifeste muessen uebereinstimmen
-# ---------------------------------------------------------------------------
-if os.path.exists(manifest_path) and isinstance(library, dict):
-    for addon in library.get("addons", []):
-        wanted = [int(x) for x in str(addon.get("version", "0.0.0")).split(".")]
-        for pack in addon.get("packs", []):
-            mf = os.path.join(ROOT, pack, "manifest.json")
-            if not os.path.exists(mf):
-                continue
-            data = load(mf)
-            if not isinstance(data, dict):
-                continue
-            have = data.get("header", {}).get("version")
-            if have != wanted:
-                errors.append("%s: Manifest-Version %s passt nicht zu "
-                              "addons.json (%s)" % (pack, have, wanted))
+    # --- Vorschaubilder fuer die Website -----------------------------------
+    preview = addon.get("preview", {})
+    if preview:
+        pack = preview.get("pack")
+        if pack not in addon.get("packs", []):
+            fail("%s: preview.pack '%s' steht nicht in 'packs'" % (tag, pack))
+        folder = preview.get("folder", "items")
+        for texture in preview.get("textures", []):
+            png = os.path.join(ROOT, pack or "", "textures", folder, texture + ".png")
+            if not os.path.exists(png):
+                fail("%s: Vorschaubild fehlt -> %s" % (tag, os.path.relpath(png, ROOT)))
 
-# ---------------------------------------------------------------------------
-# 13) textures_list.json muss zu den vorhandenen PNGs passen
-# ---------------------------------------------------------------------------
-listing = os.path.join(RP, "textures", "textures_list.json")
-if not os.path.exists(listing):
-    errors.append("textures/textures_list.json fehlt")
-else:
-    listed = set(load(listing) or [])
-    actual = set()
-    for base, _, files in os.walk(os.path.join(RP, "textures")):
-        for name in files:
-            if name.endswith(".png"):
-                rel = os.path.relpath(os.path.join(base, name), RP)
-                actual.add(rel.replace(os.sep, "/")[:-4])
-    for missing in sorted(actual - listed):
-        errors.append("textures_list.json fuehrt '%s' nicht auf" % missing)
-    for extra_entry in sorted(listed - actual):
-        errors.append("textures_list.json nennt '%s', die Datei fehlt" % extra_entry)
+    doc_path = addon.get("docs")
+    if doc_path and not os.path.exists(os.path.join(ROOT, doc_path)):
+        fail("%s: 'docs' zeigt auf %s - nicht vorhanden" % (tag, doc_path))
 
-# Die Fadenkreuz-Groesse in der UI muss zur Textur passen.
-if os.path.exists(hud):
-    hud_doc = load(hud) or {}
-    for node in hud_doc.values():
-        if isinstance(node, dict) and node.get("type") == "image":
-            declared = node.get("size")
-            png = os.path.join(RP, node.get("texture", "") + ".png")
-            if declared and os.path.exists(png):
-                with open(png, "rb") as fh:
-                    head = fh.read(24)
-                width = int.from_bytes(head[16:20], "big")
-                height = int.from_bytes(head[20:24], "big")
-                if declared != [width, height]:
-                    errors.append("hud_screen.json gibt %s an, die Textur ist %dx%d"
-                                  % (declared, width, height))
-
-print("Texturliste und HUD-Groesse geprueft")
+    notes.append("  %-16s %2d Inhalte, %2d Rezepte, Version %s"
+                 % (addon.get("id"), len(contents), len(recipe_strings), version))
 
 
-print("Versionen abgeglichen")
+for entry in library.get("addons", []):
+    check_addon(entry)
 
-# ---------------------------------------------------------------------------
-# 14) Paketnamen: beide Packs muessen einen Namen anzeigen, und der muss die
-#     Version enthalten. Sonst stehen in der Paketliste einer Welt mehrere
-#     ununterscheidbare Eintraege - oder der rohe Schluessel "pack.name".
-# ---------------------------------------------------------------------------
-for pack, label in ((BP, "Behavior-Pack"), (RP, "Resource-Pack")):
-    mf = load(os.path.join(pack, "manifest.json"))
-    if not isinstance(mf, dict):
-        continue
-    version = ".".join(str(n) for n in mf["header"]["version"])
-    declared = mf["header"].get("name", "")
-
-    for lang in ("de_DE", "en_US"):
-        path = os.path.join(pack, "texts", lang + ".lang")
-        if not os.path.exists(path):
-            errors.append("%s: %s.lang fehlt - die Paketliste zeigt sonst "
-                          "den rohen Schluessel '%s'" % (label, lang, declared))
-            continue
-        with open(path, encoding="utf-8") as fh:
-            entries = dict(line.rstrip("\n").split("=", 1)
-                           for line in fh if "=" in line)
-        if declared.startswith("pack.") and declared not in entries:
-            errors.append("%s/%s: Manifest verweist auf '%s', der Schluessel "
-                          "fehlt in der Sprachdatei" % (label, lang, declared))
-        name = entries.get("pack.name", "")
-        if name and version not in name:
-            errors.append("%s/%s: Paketname '%s' enthaelt die Version %s nicht"
-                          % (label, lang, name, version))
-        if "pack.description" not in entries:
-            errors.append("%s/%s: 'pack.description' fehlt" % (label, lang))
-
-# Beschreibungen der beiden Packs muessen sich unterscheiden, damit beim
-# Installieren klar ist, welcher Teil welcher ist.
-try:
-    def describe(pack):
-        with open(os.path.join(pack, "texts", "de_DE.lang"), encoding="utf-8") as fh:
-            for line in fh:
-                if line.startswith("pack.description="):
-                    return line.split("=", 1)[1].strip()
-        return ""
-    if describe(BP) and describe(BP) == describe(RP):
-        errors.append("Behavior- und Resource-Pack haben dieselbe Beschreibung")
-except OSError:
-    pass
-
-print("Paketnamen geprueft")
+print("%d Add-On(s), %d JSON-Dateien geprueft" % (len(library.get("addons", [])), total_json))
+for line in notes:
+    print(line)
 
 if errors:
     print("\nFEHLER (%d):" % len(errors))

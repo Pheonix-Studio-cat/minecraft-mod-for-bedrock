@@ -1,0 +1,45 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "pack.name",
+    "description": "pack.description",
+    "uuid": "5b890a84-4127-454d-8676-1c6093261d21",
+    "version": [
+      1,
+      0,
+      0
+    ],
+    "min_engine_version": [
+      1,
+      21,
+      60
+    ]
+  },
+  "modules": [
+    {
+      "type": "resources",
+      "uuid": "0b956ba4-aed7-4b79-8577-3a602e74d791",
+      "version": [
+        1,
+        0,
+        0
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "uuid": "7bb5adc9-ba50-4a9a-97b7-a61573850c7b",
+      "version": [
+        1,
+        0,
+        0
+      ]
+    }
+  ],
+  "metadata": {
+    "authors": [
+      "PHOENIX STUDIO"
+    ],
+    "license": "MIT"
+  }
+}

@@ -1,13 +1,49 @@
-# PX Weapons — Waffen-Add-On für Minecraft Bedrock
+# PHÖNIX STUDIO — Add-Ons für Minecraft Bedrock
 
 > **NOT AN OFFICIAL MINECRAFT PRODUCT.**
 > **NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT.**
 
-Ein Bedrock-Add-On von PHÖNIX STUDIO mit Nahkampfwaffen, Schusswaffen, Granaten
-und einem Geschützturm. Alle Waffen sind **frei erfunden** — keine realen
-Markennamen, keine Designs aus anderen Spielen, alle Grafiken selbst erzeugt.
-
 **Download-Seite:** https://pheonix-studio-cat.github.io/minecraft-mod-for-bedrock/
+
+| Add-On | Inhalt | Rezepte |
+|---|---|---|
+| **PX Weapons** | Schusswaffen, Messer, Granaten, Geschützturm | [Rezepte](https://pheonix-studio-cat.github.io/minecraft-mod-for-bedrock/recipes/px_weapons.html) |
+| **PX Waterslide** | Bausteine für Wasserrutschen zum Runterrutschen | [Rezepte](https://pheonix-studio-cat.github.io/minecraft-mod-for-bedrock/recipes/px_waterslide.html) |
+
+Alle Inhalte sind **frei erfunden** — keine realen Markennamen, keine Designs aus
+anderen Spielen, alle Grafiken selbst erzeugt.
+
+---
+
+# PX Waterslide
+
+Sechs Bausteine, aus denen sich Wasserrutschen jeder Länge bauen lassen. Wer
+hineinspringt, wird automatisch weitergeschoben.
+
+| Baustein | Wirkung |
+|---|---|
+| Rutsche gerade | Grundstück, schiebt gleichmäßig weiter |
+| Rutsche Kurve | Wände an zwei Seiten, lenkt um die Ecke |
+| Rutsche Gefälle | gekippt, deutlich schneller |
+| Rutschen-Röhre | rundum geschlossen, nur vorn und hinten offen |
+| Beschleuniger | kräftiger Schub |
+| Auslauf | bremst sanft ab, ans Ende setzen |
+
+**Bauen:** Die Teile richten sich beim Setzen nach deiner Blickrichtung — du
+schaust in die Richtung, in die gerutscht werden soll. Eine gute Reihenfolge ist
+Gefälle zum Anschieben, dann gerade Teile, Kurven zum Abbiegen und am Ende ein
+Auslauf.
+
+**Befehle:** `/scriptevent px:slide_recipes` listet die Rezepte,
+`/scriptevent px:slide_diag` zeigt die Diagnose.
+
+**Anpassen** in `behavior_packs/px_waterslide_bp/scripts/main.js`: `softLanding`
+dämpft den Sturzschaden beim Rutschen, `effects` schaltet Spritzer und Geräusch
+ab. Die Geschwindigkeiten stehen in der Tabelle `SLIDE_BLOCKS` direkt darunter.
+
+---
+
+# PX Weapons
 
 ## Installation
 
@@ -186,8 +222,9 @@ Streuung, Reichweite, Salvenlänge).
 | Befehl | Zweck |
 |---|---|
 | `python3 tools/gen_textures.py` | erzeugt alle PNGs neu aus ASCII-Pixelart |
-| `python3 tools/gen_content.py` | erzeugt Items, Rezepte, Sprachdateien, Entity |
-| `python3 tools/validate.py` | prüft JSON, Texturverweise, Rezepte, Sprachschlüssel, `addons.json` |
+| `python3 tools/gen_content.py` | erzeugt PX Weapons: Items, Rezepte, Sprachdateien, Entity |
+| `python3 tools/gen_waterslide.py` | erzeugt PX Waterslide: Blöcke, Modelle, Texturen, Rezepte |
+| `python3 tools/validate.py` | prüft **alle** Add-Ons aus `addons.json`: JSON, Texturen, Modelle, Rezepte, Sprachschlüssel, Versionen |
 | `python3 tools/build.py` | packt jedes Add-On aus `addons.json` nach `dist/` |
 | `python3 tools/build_site.py` | erzeugt die Website nach `site/` |
 | `python3 tools/check_site.py` | prüft die Website auf tote Links und Anker |
@@ -229,8 +266,12 @@ Add-On eingetragen wird — Website, Downloads und Vorschaubilder folgen daraus.
 }
 ```
 
-3. `python3 tools/validate.py` — prüft, dass Ordner, Vorschaubilder und Felder stimmen
-4. Auf `main` pushen — der Workflow baut und veröffentlicht automatisch
+3. `python3 tools/validate.py` — prüft das neue Add-On automatisch mit, sobald es
+   im Katalog steht: Manifeste, Texturverweise, Modelle, Rezepte, Sprachschlüssel
+   und Versionen
+4. Zutaten neuer Rezepte in `tools/ingredients.py` eintragen — die eine Tabelle
+   versorgt Validierung *und* Rezeptseite
+5. Auf `main` pushen — der Workflow baut und veröffentlicht automatisch
 
 Die Vorschaubilder auf der Karte sind echte Item-Texturen aus dem Resource-Pack,
 referenziert über ihren Dateinamen ohne `.png`.

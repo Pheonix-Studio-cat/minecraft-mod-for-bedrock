@@ -44,6 +44,42 @@
         "Griefing per Konfiguration komplett abschaltbar"
       ],
       "docs": "README.md"
+    },
+    {
+      "id": "px_waterslide",
+      "name": "PX Waterslide",
+      "tagline": "Wasserrutschen bauen und runterrutschen",
+      "description": "Sechs Bausteine, aus denen sich Wasserrutschen jeder Länge bauen lassen: gerade Stücke, Kurven, Gefälle, geschlossene Röhren, Beschleuniger und ein Auslauf zum Abbremsen. Die Teile richten sich beim Setzen nach deiner Blickrichtung, und wer hineinspringt, wird automatisch weitergeschoben.",
+      "version": "1.0.0",
+      "minEngineVersion": "1.21.60",
+      "requiresBetaApi": true,
+      "accent": "#3fb8c8",
+      "tags": [
+        "Bauen",
+        "Spaß",
+        "Skript-API"
+      ],
+      "packs": [
+        "behavior_packs/px_waterslide_bp",
+        "resource_packs/px_waterslide_rp"
+      ],
+      "preview": {
+        "pack": "resource_packs/px_waterslide_rp",
+        "folder": "blocks",
+        "textures": [
+          "px_slide",
+          "px_slide_boost",
+          "px_slide_end"
+        ]
+      },
+      "features": [
+        "6 Bausteine: gerade, Kurve, Gefälle, Röhre, Beschleuniger, Auslauf",
+        "Teile richten sich beim Setzen nach der Blickrichtung",
+        "Gefälle beschleunigt, Auslauf bremst sanft ab",
+        "Gedämpfter Sturzschaden beim Rutschen, abschaltbar",
+        "Rezeptliste im Spiel per Befehl"
+      ],
+      "docs": "README.md"
     }
   ]
 }
