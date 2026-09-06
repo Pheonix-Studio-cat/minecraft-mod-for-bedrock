@@ -31,7 +31,9 @@ def build(addon):
             root = os.path.join(ROOT, pack)
             if not os.path.isdir(root):
                 raise SystemExit("Pack-Ordner fehlt: %s" % pack)
-            top = os.path.basename(pack.rstrip("/"))
+            # Ordnername traegt die Version: so ueberschreiben sich zwei
+            # Fassungen bei manueller Installation nach com.mojang nicht.
+            top = "%s-%s" % (os.path.basename(pack.rstrip("/")), addon["version"])
             for base, _, files in os.walk(root):
                 for name in sorted(files):
                     if name in SKIP:

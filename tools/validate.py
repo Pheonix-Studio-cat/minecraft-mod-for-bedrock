@@ -387,6 +387,53 @@ print("Texturliste und HUD-Groesse geprueft")
 
 print("Versionen abgeglichen")
 
+# ---------------------------------------------------------------------------
+# 14) Paketnamen: beide Packs muessen einen Namen anzeigen, und der muss die
+#     Version enthalten. Sonst stehen in der Paketliste einer Welt mehrere
+#     ununterscheidbare Eintraege - oder der rohe Schluessel "pack.name".
+# ---------------------------------------------------------------------------
+for pack, label in ((BP, "Behavior-Pack"), (RP, "Resource-Pack")):
+    mf = load(os.path.join(pack, "manifest.json"))
+    if not isinstance(mf, dict):
+        continue
+    version = ".".join(str(n) for n in mf["header"]["version"])
+    declared = mf["header"].get("name", "")
+
+    for lang in ("de_DE", "en_US"):
+        path = os.path.join(pack, "texts", lang + ".lang")
+        if not os.path.exists(path):
+            errors.append("%s: %s.lang fehlt - die Paketliste zeigt sonst "
+                          "den rohen Schluessel '%s'" % (label, lang, declared))
+            continue
+        with open(path, encoding="utf-8") as fh:
+            entries = dict(line.rstrip("\n").split("=", 1)
+                           for line in fh if "=" in line)
+        if declared.startswith("pack.") and declared not in entries:
+            errors.append("%s/%s: Manifest verweist auf '%s', der Schluessel "
+                          "fehlt in der Sprachdatei" % (label, lang, declared))
+        name = entries.get("pack.name", "")
+        if name and version not in name:
+            errors.append("%s/%s: Paketname '%s' enthaelt die Version %s nicht"
+                          % (label, lang, name, version))
+        if "pack.description" not in entries:
+            errors.append("%s/%s: 'pack.description' fehlt" % (label, lang))
+
+# Beschreibungen der beiden Packs muessen sich unterscheiden, damit beim
+# Installieren klar ist, welcher Teil welcher ist.
+try:
+    def describe(pack):
+        with open(os.path.join(pack, "texts", "de_DE.lang"), encoding="utf-8") as fh:
+            for line in fh:
+                if line.startswith("pack.description="):
+                    return line.split("=", 1)[1].strip()
+        return ""
+    if describe(BP) and describe(BP) == describe(RP):
+        errors.append("Behavior- und Resource-Pack haben dieselbe Beschreibung")
+except OSError:
+    pass
+
+print("Paketnamen geprueft")
+
 if errors:
     print("\nFEHLER (%d):" % len(errors))
     for e in errors:

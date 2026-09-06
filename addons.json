@@ -10,7 +10,7 @@
       "name": "PX Weapons",
       "tagline": "Schusswaffen, Messer, Granaten und ein Geschützturm",
       "description": "Sieben frei erfundene Schusswaffen von der Pistole bis zur Minigun, zwei Nahkampfmesser mit eigenen Rechtsklick-Aktionen, drei Granatentypen und ein Geschützturm, der Monster automatisch erfasst. Alle Rezepte sind bewusst günstig gehalten: nur Eisen, Stöcke, Redstone, Schießpulver, Kohle, Glas und Faden.",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "minEngineVersion": "1.21.30",
       "requiresBetaApi": true,
       "accent": "#e08a2e",

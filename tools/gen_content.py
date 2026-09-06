@@ -177,26 +177,70 @@ def build_recipes():
         })
 
 
+def pack_version():
+    """Liest die Version aus dem Behavior-Pack-Manifest.
+
+    Damit steht die Version nur an einer Stelle und kann nicht zwischen
+    Manifest und angezeigtem Paketnamen auseinanderlaufen.
+    """
+    with open(os.path.join(BP, "manifest.json")) as fh:
+        return ".".join(str(n) for n in json.load(fh)["header"]["version"])
+
+
 def build_lang():
+    version = pack_version()
+
+    # Der Paketname traegt die Version, damit sich in der Paketliste einer Welt
+    # mehrere Fassungen unterscheiden lassen. Die Beschreibung sagt zusaetzlich,
+    # welcher der beiden Teile es ist - beide muessen aktiviert werden.
     packs = {
-        "de_DE": ("PX Waffen", "Waffen-Add-On von PHOENIX STUDIO. Kein offizielles Minecraft-Produkt."),
-        "en_US": ("PX Weapons", "Weapon add-on by PHOENIX STUDIO. Not an official Minecraft product."),
+        "de_DE": {
+            "name": "PX Waffen %s" % version,
+            BP: "Teil 1 von 2: Verhalten, Rezepte und Skripte. "
+                "Kein offizielles Minecraft-Produkt.",
+            RP: "Teil 2 von 2: Texturen, Fadenkreuz und Namen. "
+                "Kein offizielles Minecraft-Produkt.",
+        },
+        "en_US": {
+            "name": "PX Weapons %s" % version,
+            BP: "Part 1 of 2: behaviour, recipes and scripts. "
+                "Not an official Minecraft product.",
+            RP: "Part 2 of 2: textures, crosshair and names. "
+                "Not an official Minecraft product.",
+        },
     }
     tables = {"de_DE": NAMES_DE, "en_US": NAMES_EN}
+
     for lang, names in tables.items():
-        pack_name, pack_desc = packs[lang]
-        lines = ["pack.name=" + pack_name, "pack.description=" + pack_desc, ""]
+        meta = packs[lang]
+
+        # Behavior-Pack: nur der Paketname. Bewusst ohne Item-Namen, damit ein
+        # fehlendes Resource-Pack sofort auffaellt - die Items heissen dann
+        # sichtbar "item.px:pistol.name".
+        write_lang(os.path.join(BP, "texts", lang + ".lang"),
+                   ["pack.name=" + meta["name"],
+                    "pack.description=" + meta[BP]])
+
+        # Resource-Pack: Paketname und alle Item-Namen.
+        lines = ["pack.name=" + meta["name"],
+                 "pack.description=" + meta[RP], ""]
         for name, *_ in ITEMS:
             ident = "px:" + name
             # Beide Schluesselvarianten, damit es versionsunabhaengig greift.
             lines.append("item.%s.name=%s" % (ident, names[name]))
             lines.append("item.%s=%s" % (ident, names[name]))
-        lines.append("")
-        path = os.path.join(RP, "texts", lang + ".lang")
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w") as fh:
-            fh.write("\n".join(lines))
-    dump(os.path.join(RP, "texts", "languages.json"), ["de_DE", "en_US"])
+        write_lang(os.path.join(RP, "texts", lang + ".lang"), lines)
+
+    for pack in (BP, RP):
+        dump(os.path.join(pack, "texts", "languages.json"), ["de_DE", "en_US"])
+
+    return version
+
+
+def write_lang(path, lines):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as fh:
+        fh.write("\n".join(lines) + "\n")
 
 
 def build_turret():
@@ -282,11 +326,11 @@ def build_textures_list():
 def main():
     build_items()
     build_recipes()
-    build_lang()
+    version = build_lang()
     build_turret()
     count = build_textures_list()
     print("Items:", len(ITEMS), "| Rezepte:", len(SHAPED) + len(SHAPELESS),
-          "| Texturen gelistet:", count)
+          "| Texturen gelistet:", count, "| Paketname: PX Waffen", version)
 
 
 if __name__ == "__main__":
