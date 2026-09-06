@@ -14,7 +14,11 @@ Markennamen, keine Designs aus anderen Spielen, alle Grafiken selbst erzeugt.
 1. `python3 tools/build.py` ausführen → erzeugt `dist/PX_Weapons.mcaddon`
 2. Die `.mcaddon`-Datei doppelklicken (Windows/Android/iOS) — Minecraft
    importiert Behavior- und Resource-Pack automatisch
-3. In den Welteinstellungen **beide** Packs aktivieren
+3. In den Welteinstellungen **beide** Packs aktivieren — sie heißen gleich und
+   tragen die Version im Namen, z. B. `PX Waffen 1.2.1`. Die Beschreibung sagt,
+   welcher Teil welcher ist:
+   - *Teil 1 von 2* steht unter **Verhaltenspakete**
+   - *Teil 2 von 2* steht unter **Ressourcenpakete**
 4. Unter *Experimente* → **Beta APIs** einschalten (nötig für die Skript-Logik)
 
 Alternativ: die beiden Ordner direkt nach
@@ -23,12 +27,33 @@ kopieren.
 
 **Voraussetzung:** Minecraft Bedrock **1.21.30 oder neuer**.
 
+## Versionen auseinanderhalten
+
+Alles trägt dieselbe Versionsnummer, damit beim Installieren nichts durcheinander
+gerät:
+
+| Wo | Beispiel |
+|---|---|
+| Download-Datei | `px_weapons-1.2.1.mcaddon` |
+| Paketname in Minecraft | `PX Waffen 1.2.1` |
+| Ordner im Paket | `px_weapons_bp-1.2.1`, `px_weapons_rp-1.2.1` |
+| Startmeldung im Chat | `PX Weapons 1.2.1 geladen.` |
+
+Die Ordnernamen tragen die Version, damit sich zwei Fassungen bei manueller
+Installation nach `com.mojang/` nicht gegenseitig überschreiben.
+
+`tools/validate.py` prüft, dass all diese Stellen dieselbe Version nennen — eine
+allein zu ändern schlägt fehl.
+
+**Beim Aktualisieren:** die alte Fassung in der Welt erst deaktivieren, dann die
+neue aktivieren. Minecraft nimmt sonst weiter die alte.
+
 ## Läuft es? Erst das prüfen
 
 Beim Betreten der Welt erscheint im Chat:
 
 ```
-PX Weapons 1.2.0 geladen. /scriptevent px:recipes für Rezepte, /scriptevent px:diag für Diagnose.
+PX Weapons 1.2.1 geladen. /scriptevent px:recipes für Rezepte, /scriptevent px:diag für Diagnose.
 ```
 
 Diese Meldung ist der schnellste Test. Was sie ausschließt:

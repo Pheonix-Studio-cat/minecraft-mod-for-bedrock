@@ -15,7 +15,7 @@ import { world, system } from "@minecraft/server";
  * in dieser Liste und im Inhaltsprotokoll, abrufbar im Spiel mit          *
  *   /scriptevent px:diag                                                  *
  * ---------------------------------------------------------------------- */
-const VERSION = "1.2.0";
+const VERSION = "1.2.1";
 const problems = [];
 
 function problem(where, error) {
