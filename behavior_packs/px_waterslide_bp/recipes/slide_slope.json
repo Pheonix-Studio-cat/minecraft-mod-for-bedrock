@@ -1,0 +1,32 @@
+{
+  "format_version": "1.20.10",
+  "minecraft:recipe_shaped": {
+    "description": {
+      "identifier": "px:slide_slope"
+    },
+    "tags": [
+      "crafting_table"
+    ],
+    "unlock": [
+      {
+        "context": "AlwaysUnlocked"
+      }
+    ],
+    "pattern": [
+      "G G",
+      "GAG"
+    ],
+    "key": {
+      "G": {
+        "item": "minecraft:glass"
+      },
+      "A": {
+        "item": "minecraft:sand"
+      }
+    },
+    "result": {
+      "item": "px:slide_slope",
+      "count": 4
+    }
+  }
+}

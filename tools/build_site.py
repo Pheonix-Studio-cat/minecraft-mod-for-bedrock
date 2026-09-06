@@ -13,11 +13,15 @@ import html
 import json
 import os
 import shutil
+import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DIST = os.path.join(ROOT, "dist")
 SITE = os.path.join(ROOT, "site")
 MANIFEST = os.path.join(ROOT, "addons.json")
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from ingredients import INGREDIENTS  # noqa: E402
 
 DISCLAIMER = ("NOT AN OFFICIAL MINECRAFT PRODUCT. "
               "NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT.")
@@ -525,37 +529,43 @@ SEARCH_JS = """
 """
 
 
-# Zutaten: Kuerzel, Anzeigename und Farbe fuer die Rezeptraster.
-# Es werden keine Minecraft-Texturen verwendet, nur eigene Farbfelder.
-INGREDIENTS = {
-    "minecraft:iron_ingot":   ("I", "Eisenbarren", "#d9dde2"),
-    "minecraft:stick":        ("S", "Stock", "#b58c56"),
-    "minecraft:redstone":     ("R", "Redstone", "#d05646"),
-    "minecraft:glass":        ("G", "Glas", "#a9d9e8"),
-    "minecraft:gunpowder":    ("P", "Schießpulver", "#9aa0a6"),
-    "minecraft:string":       ("T", "Faden", "#e8e8e8"),
-    "minecraft:coal":         ("C", "Kohle", "#6b6b6b"),
-    "minecraft:glass_bottle": ("F", "Glasflasche", "#b9dccb"),
-}
-
-
 def read_pack_items(behavior_pack, resource_pack):
     """Sammelt id -> {icon, name} aus Item-Definitionen und Sprachdatei."""
     items = {}
+
+    # Items: Bild kommt aus minecraft:icon (Kurzform oder Objektform)
     folder = os.path.join(ROOT, behavior_pack, "items")
     for name in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
         if not name.endswith(".json"):
             continue
         with open(os.path.join(folder, name), encoding="utf-8") as fh:
             doc = json.load(fh)
-        block = doc.get("minecraft:item", {})
-        ident = block.get("description", {}).get("identifier")
-        icon = block.get("components", {}).get("minecraft:icon", {})
+        entry = doc.get("minecraft:item", {})
+        ident = entry.get("description", {}).get("identifier")
+        icon = entry.get("components", {}).get("minecraft:icon", {})
         if ident:
             items[ident] = {
                 "icon": icon.get("texture") if isinstance(icon, dict) else icon,
                 "name": ident,
             }
+
+    # Bloecke: Bild kommt aus der Materialbelegung
+    folder = os.path.join(ROOT, behavior_pack, "blocks")
+    for name in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
+        if not name.endswith(".json"):
+            continue
+        with open(os.path.join(folder, name), encoding="utf-8") as fh:
+            doc = json.load(fh)
+        entry = doc.get("minecraft:block", {})
+        ident = entry.get("description", {}).get("identifier")
+        material = entry.get("components", {}).get("minecraft:material_instances", {})
+        texture = None
+        for instance in material.values():
+            if isinstance(instance, dict) and instance.get("texture"):
+                texture = instance["texture"]
+                break
+        if ident:
+            items[ident] = {"icon": texture, "name": ident}
 
     lang = os.path.join(ROOT, resource_pack, "texts", "de_DE.lang")
     if os.path.exists(lang):
@@ -564,10 +574,11 @@ def read_pack_items(behavior_pack, resource_pack):
                 if "=" not in line:
                     continue
                 key, value = line.rstrip("\n").split("=", 1)
-                if key.startswith("item.") and key.endswith(".name"):
-                    ident = key[len("item."):-len(".name")]
-                    if ident in items:
-                        items[ident]["name"] = value
+                for prefix in ("item.", "tile."):
+                    if key.startswith(prefix) and key.endswith(".name"):
+                        ident = key[len(prefix):-len(".name")]
+                        if ident in items:
+                            items[ident]["name"] = value
     return items
 
 
@@ -946,23 +957,29 @@ def main():
 
         preview = addon.get("preview", {})
         pack = preview.get("pack")
+        # Item-Add-Ons legen ihre Texturen unter textures/items ab,
+        # Block-Add-Ons unter textures/blocks.
+        folder = preview.get("folder", "items")
         for name in preview.get("textures", []):
-            src = os.path.join(ROOT, pack, "textures", "items", name + ".png")
+            src = os.path.join(ROOT, pack, "textures", folder, name + ".png")
             if not os.path.exists(src):
                 raise SystemExit("Vorschaubild fehlt: %s" % src)
 
-        # Alle Item-Texturen des Packs uebernehmen: die Vorschau braucht
-        # einige, die Rezeptseite zeigt jedes Ergebnis mit seinem Icon.
+        # Alle Texturen des Packs uebernehmen: die Vorschau braucht einige,
+        # die Rezeptseite zeigt jedes Ergebnis mit seinem Bild.
         resource = next((x for x in addon["packs"]
                          if x.startswith("resource_packs")), None)
         if resource:
-            source_dir = os.path.join(ROOT, resource, "textures", "items")
             target_dir = os.path.join(SITE, "img", addon["id"])
             os.makedirs(target_dir, exist_ok=True)
-            for name in sorted(os.listdir(source_dir)):
-                if name.endswith(".png"):
-                    shutil.copy2(os.path.join(source_dir, name),
-                                 os.path.join(target_dir, name))
+            for sub in ("items", "blocks"):
+                source_dir = os.path.join(ROOT, resource, "textures", sub)
+                if not os.path.isdir(source_dir):
+                    continue
+                for name in sorted(os.listdir(source_dir)):
+                    if name.endswith(".png"):
+                        shutil.copy2(os.path.join(source_dir, name),
+                                     os.path.join(target_dir, name))
 
         write(os.path.join(SITE, "addon", addon["id"] + ".html"),
               build_detail(manifest, addon, sizes[addon["id"]], generated))

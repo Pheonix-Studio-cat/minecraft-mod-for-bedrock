@@ -1,0 +1,15 @@
+pack.name=PX Waterslide 1.0.0
+pack.description=Part 2 of 2: models, textures and names. Not an official Minecraft product.
+
+tile.px:slide_straight.name=Slide Straight
+item.px:slide_straight.name=Slide Straight
+tile.px:slide_curve.name=Slide Curve
+item.px:slide_curve.name=Slide Curve
+tile.px:slide_slope.name=Slide Slope
+item.px:slide_slope.name=Slide Slope
+tile.px:slide_tube.name=Slide Tube
+item.px:slide_tube.name=Slide Tube
+tile.px:slide_booster.name=Booster
+item.px:slide_booster.name=Booster
+tile.px:slide_end.name=Slide End
+item.px:slide_end.name=Slide End

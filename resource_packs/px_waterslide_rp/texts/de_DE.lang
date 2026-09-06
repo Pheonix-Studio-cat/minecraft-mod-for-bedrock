@@ -1,0 +1,15 @@
+pack.name=PX Wasserrutsche 1.0.0
+pack.description=Teil 2 von 2: Modelle, Texturen und Namen. Kein offizielles Minecraft-Produkt.
+
+tile.px:slide_straight.name=Rutsche gerade
+item.px:slide_straight.name=Rutsche gerade
+tile.px:slide_curve.name=Rutsche Kurve
+item.px:slide_curve.name=Rutsche Kurve
+tile.px:slide_slope.name=Rutsche Gefälle
+item.px:slide_slope.name=Rutsche Gefälle
+tile.px:slide_tube.name=Rutschen-Röhre
+item.px:slide_tube.name=Rutschen-Röhre
+tile.px:slide_booster.name=Beschleuniger
+item.px:slide_booster.name=Beschleuniger
+tile.px:slide_end.name=Auslauf
+item.px:slide_end.name=Auslauf

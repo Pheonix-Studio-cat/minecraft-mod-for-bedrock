@@ -1,0 +1,17 @@
+{
+  "resource_pack_name": "px_waterslide",
+  "texture_name": "atlas.terrain",
+  "padding": 8,
+  "num_mip_levels": 4,
+  "texture_data": {
+    "px_slide": {
+      "textures": "textures/blocks/px_slide"
+    },
+    "px_slide_boost": {
+      "textures": "textures/blocks/px_slide_boost"
+    },
+    "px_slide_end": {
+      "textures": "textures/blocks/px_slide_end"
+    }
+  }
+}

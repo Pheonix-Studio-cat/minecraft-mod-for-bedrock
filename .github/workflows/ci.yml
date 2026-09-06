@@ -32,6 +32,7 @@ jobs:
         run: |
           python3 tools/gen_textures.py
           python3 tools/gen_content.py
+          python3 tools/gen_waterslide.py
           # Nur die von den Generatoren erzeugten Pfade vergleichen.
           # PNGs ausgenommen: zlib komprimiert je nach Version minimal anders.
           if ! git diff --quiet -- behavior_packs resource_packs ':!*.png'; then
